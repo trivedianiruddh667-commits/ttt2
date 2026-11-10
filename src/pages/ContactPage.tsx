@@ -423,7 +423,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                       required
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
-                      placeholder="e.g. Aryan Sharma"
+                      placeholder="Your Full Name"
                       className="w-full min-h-[44px] bg-black border-2 border-zinc-700 px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-white transition-colors"
                     />
                   </div>

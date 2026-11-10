@@ -361,7 +361,7 @@ export const INITIAL_SITE_CONTENT: SiteContent = {
   team: {
     header: {
       badge: 'FACULTY & ARCHITECTS',
-      title: 'Our Tribe',
+      title: 'Trending Teachers',
       description:
         "The educators behind Techie Teacher's Tribe Trust aren't corporate pitchmen. We are battle-hardened professors, former exam toppers, and system engineers who know what examiners evaluate."
     },

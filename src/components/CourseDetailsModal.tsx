@@ -34,7 +34,6 @@ interface CourseDetailsModalProps {
   onAddToCart: (course: Course) => void;
   onDirectBuy: (course: Course) => void;
   isInCart: (courseId: string) => boolean;
-  onLoginDemoStudent?: () => void;
   onNavigateToStudentDashboard?: () => void;
 }
 
@@ -51,7 +50,6 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
   onAddToCart,
   onDirectBuy,
   isInCart,
-  onLoginDemoStudent,
   onNavigateToStudentDashboard
 }) => {
   // Active tab state
@@ -238,12 +236,6 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
         : '✓ Verified Review published! Thank you for helping the Tribe.'
     );
     setTimeout(() => setSubmitSuccessNotice(null), 4000);
-  };
-
-  const handleInstantCompleteForTesting = () => {
-    onUpdateProgress(course.id, 100);
-    setSubmitSuccessNotice('⚡ Course marked 100% completed! You can now write your verified review.');
-    setTimeout(() => setSubmitSuccessNotice(null), 3500);
   };
 
   return (
@@ -586,15 +578,6 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
-                      {onLoginDemoStudent && (
-                        <button
-                          type="button"
-                          onClick={onLoginDemoStudent}
-                          className="px-4 py-2.5 border-2 border-white bg-white text-black font-black uppercase text-xs hover:bg-zinc-200 transition-colors shadow-[2px_2px_0px_0px_#ffffff]"
-                        >
-                          Sign In as Cadet Aryan (DTU)
-                        </button>
-                      )}
                       {onNavigateToStudentDashboard && (
                         <button
                           type="button"
@@ -602,9 +585,9 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                             onClose();
                             onNavigateToStudentDashboard();
                           }}
-                          className="px-4 py-2.5 border-2 border-zinc-700 bg-black text-white font-bold uppercase text-xs hover:border-white transition-colors"
+                          className="px-6 py-2.5 border-2 border-white bg-white text-black font-black uppercase text-xs hover:bg-zinc-200 transition-colors shadow-[2px_2px_0px_0px_#ffffff]"
                         >
-                          Sign In
+                          Sign In to Review
                         </button>
                       )}
                     </div>
@@ -664,17 +647,6 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        {/* Instant completion trigger for testing & demo */}
-                        <button
-                          type="button"
-                          onClick={handleInstantCompleteForTesting}
-                          className="px-4 py-2.5 border-2 border-white bg-white text-black font-black uppercase text-xs hover:bg-zinc-200 transition-colors shadow-[3px_3px_0px_0px_#ffffff] flex items-center gap-1.5"
-                          title="Instant 100% completion for testing review submission"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Mark 100% Completed</span>
-                        </button>
-
                         {onNavigateToStudentDashboard && (
                           <button
                             type="button"
@@ -682,7 +654,7 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                               onClose();
                               onNavigateToStudentDashboard();
                             }}
-                            className="px-4 py-2.5 border-2 border-zinc-700 bg-black text-white hover:border-white font-bold uppercase text-xs transition-colors"
+                            className="px-5 py-2.5 border-2 border-white bg-white text-black hover:bg-zinc-200 font-bold uppercase text-xs transition-colors shadow-[2px_2px_0px_0px_#ffffff]"
                           >
                             Go to Study Desk
                           </button>

@@ -30,7 +30,7 @@ interface TeacherProfileModalProps {
   onSubmit: (data: TeacherProfileFormData) => void;
 }
 
-const SAMPLE_GALLERY_PHOTOS = [
+const STUDIO_GALLERY_PHOTOS = [
   {
     label: 'Academic Desk',
     url: '/src/assets/images/student_desk_bw_1793717857911.jpg'
@@ -366,7 +366,7 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
                   Quick Studio Portraits:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {SAMPLE_GALLERY_PHOTOS.map((preset) => (
+                  {STUDIO_GALLERY_PHOTOS.map((preset) => (
                     <button
                       key={preset.url}
                       type="button"

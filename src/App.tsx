@@ -97,47 +97,6 @@ import {
 } from './data/db';
 import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
 
-const DEMO_DEFAULT_ORDERS: Order[] = [
-  {
-    id: 'ORD-892144',
-    date: '28 Oct 2026, 04:30 PM',
-    items: [
-      {
-        id: 'course-2',
-        title: 'Operating Systems: Kernel to Concurrency Fast-Track',
-        price: 799,
-        category: 'Crash Course'
-      }
-    ],
-    subtotal: 799,
-    discount: 100,
-    total: 699,
-    paymentMethod: 'UPI',
-    transactionId: 'pay_rzp_994XKY10',
-    status: 'SUCCESS',
-    studentEmail: 'aryan.sharma@dtu.ac.in'
-  }
-];
-
-const DEMO_DEFAULT_ENROLLED: EnrolledCourse[] = [
-  {
-    courseId: 'course-1',
-    enrolledAt: '2026-10-15',
-    progressPercent: 70,
-    lastAccessedModule: 'Module 3: Non-Linear Structures: Trees & AVL Rotations',
-    completedModules: ['mod-1', 'mod-2'],
-    notesDownloaded: true
-  },
-  {
-    courseId: 'course-2',
-    enrolledAt: '2026-10-28',
-    progressPercent: 100,
-    lastAccessedModule: 'Module 4: Virtual Memory & Disk Scheduling',
-    completedModules: ['mod-1', 'mod-2', 'mod-3', 'mod-4'],
-    notesDownloaded: true
-  }
-];
-
 export default function App() {
   // Navigation & Cross-Page Deep Link State
   const [currentPage, setCurrentPage] = useState<NavPage>('home');
@@ -211,13 +170,17 @@ export default function App() {
     return INITIAL_SITE_CONTENT;
   });
 
-  // Current logged in user (Firebase user, Demo student, Passkey Admin, or null)
+  // Current logged in user (Firebase user, Passkey Admin, or null)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('tttt_user');
       if (saved) {
         const parsed = JSON.parse(saved) as User;
-        if (parsed.id === 'usr_demo_student' || parsed.role === 'admin') {
+        if (parsed.id === 'usr_demo_student') {
+          localStorage.removeItem('tttt_user');
+          return null;
+        }
+        if (parsed.role === 'admin' || parsed.id) {
           return parsed;
         }
       }
@@ -249,26 +212,36 @@ export default function App() {
     return [];
   });
 
-  // Orders / Purchase History
+  // Orders / Purchase History (strictly empty for guests, real orders synced on login)
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem('tttt_orders');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((o: Order) => o.id !== 'ORD-892144' && o.studentEmail !== 'aryan.sharma@dtu.ac.in');
+        }
+      }
+    } catch {
       // fallback
     }
-    return DEMO_DEFAULT_ORDERS;
+    return [];
   });
 
-  // Enrolled courses for student dashboard
+  // Enrolled courses for student dashboard (strictly empty for guests, synced from Firestore on login)
   const [enrolledCourses, setEnrolledCourses] = useState<EnrolledCourse[]>(() => {
     try {
       const saved = localStorage.getItem('tttt_enrolled');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {
       // fallback
     }
-    return DEMO_DEFAULT_ENROLLED;
+    return [];
   });
 
   // Contact queries
@@ -486,8 +459,10 @@ export default function App() {
       setFirebaseUser(fbUser);
       if (!fbUser) {
         const cur = currentUserRef.current;
-        if (cur && cur.id !== 'usr_demo_student' && cur.role !== 'admin') {
+        if (cur && cur.role !== 'admin') {
           setCurrentUser(null);
+          setOrders([]);
+          setEnrolledCourses([]);
         }
         return;
       }
@@ -1053,26 +1028,6 @@ export default function App() {
         console.error('Failed to sync helpful vote to Firestore:', err)
       );
     }
-  };
-
-  const handleLoginDemoStudent = () => {
-    if (auth.currentUser) {
-      signOut(auth).catch(() => {});
-    }
-    const demoStudent: User = {
-      id: 'usr_demo_student',
-      name: 'Aryan Sharma',
-      email: 'aryan.sharma@dtu.ac.in',
-      role: 'student',
-      college: 'Delhi Technological University (DTU)',
-      semester: 'Semester 4, CS Branch',
-      targetSgpa: 9.2,
-      weeklyStudyHours: [2.5, 3.5, 1.5, 4.0, 2.0, 5.0, 3.0]
-    };
-    setCurrentUser(demoStudent);
-    setOrders(DEMO_DEFAULT_ORDERS);
-    setEnrolledCourses(DEMO_DEFAULT_ENROLLED);
-    showToast('Signed in as Demo Student (Aryan Sharma)');
   };
 
   // Cloud permissions check for faculty/admin content
@@ -1867,7 +1822,6 @@ export default function App() {
           <StudentDashboardPage
             currentUser={currentUser}
             firebaseUser={firebaseUser}
-            onLoginDemoStudent={handleLoginDemoStudent}
             onFirebaseEmailLogin={handleFirebaseEmailLogin}
             onFirebaseEmailSignUp={handleFirebaseEmailSignUp}
             onFirebaseGoogleSignIn={handleFirebaseGoogleSignIn}
@@ -2026,7 +1980,6 @@ export default function App() {
         onAddToCart={handleAddToCart}
         onDirectBuy={handleDirectBuy}
         isInCart={isInCart}
-        onLoginDemoStudent={handleLoginDemoStudent}
         onNavigateToStudentDashboard={() => setCurrentPage('student-login')}
       />
 

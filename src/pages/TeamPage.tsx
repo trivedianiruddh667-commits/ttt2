@@ -19,7 +19,7 @@ interface TeamPageProps {
 const DEFAULT_TEAM: SiteContent['team'] = {
   header: {
     badge: 'FACULTY & ARCHITECTS',
-    title: 'Our Tribe',
+    title: 'Trending Teachers',
     description:
       "The educators behind Techie Teacher's Tribe Trust aren't corporate pitchmen. We are battle-hardened professors, former exam toppers, and system engineers who know what examiners evaluate."
   },
@@ -102,14 +102,14 @@ export const TeamPage: React.FC<TeamPageProps> = ({
 
   return (
     <div className="w-full bg-black text-white select-none">
-      {/* Header section with heading "Our Tribe" */}
+      {/* Header section with heading "Trending Teachers" */}
       <section className="border-b-2 border-white py-16 px-4 sm:px-6 lg:px-8 bg-zinc-950">
         <div className="max-w-7xl mx-auto">
           <span className="text-xs uppercase tracking-[0.3em] text-zinc-400 font-mono-numbers">
             {content.header.badge}
           </span>
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black tracking-tight uppercase mt-2">
-            {content.header.title}
+            {content.header.title === 'Our Tribe' ? 'Trending Teachers' : (content.header.title || 'Trending Teachers')}
           </h1>
           <p className="text-zinc-400 text-sm sm:text-base mt-4 max-w-2xl leading-relaxed">
             {content.header.description}

@@ -53,7 +53,6 @@ import { formatFirebaseAuthError, FIREBASE_PROJECT_ID } from '../lib/firebase';
 interface StudentDashboardPageProps {
   currentUser: User | null;
   firebaseUser: FirebaseUser | null;
-  onLoginDemoStudent: () => void;
   onFirebaseEmailLogin: (email: string, password: string) => Promise<void>;
   onFirebaseEmailSignUp: (data: {
     name: string;
@@ -97,7 +96,6 @@ interface StudentDashboardPageProps {
 export const StudentDashboardPage: React.FC<StudentDashboardPageProps> = ({
   currentUser,
   firebaseUser,
-  onLoginDemoStudent,
   onFirebaseEmailLogin,
   onFirebaseEmailSignUp,
   onFirebaseGoogleSignIn,
@@ -375,16 +373,6 @@ export const StudentDashboardPage: React.FC<StudentDashboardPageProps> = ({
               <span>{isGoogleLoading ? 'Connecting to Google...' : 'Continue with Google'}</span>
             </button>
 
-            {/* Quick Optional Demo Account */}
-            <button
-              type="button"
-              onClick={onLoginDemoStudent}
-              className="w-full py-2.5 mb-5 bg-black border border-zinc-700 text-zinc-300 text-[11px] font-mono-numbers font-bold uppercase tracking-wider hover:border-white hover:text-white transition-colors flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Instant 1-Click Demo Student Preview</span>
-            </button>
-
             <div className="relative flex py-2 items-center mb-5">
               <div className="flex-grow border-t border-zinc-800"></div>
               <span className="flex-shrink mx-4 text-[10px] text-zinc-500 font-mono-numbers uppercase">
@@ -429,7 +417,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardPageProps> = ({
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Aryan Sharma"
+                      placeholder="Your Full Name"
                       className="w-full bg-zinc-950 border-2 border-zinc-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-white transition-colors"
                     />
                   </div>
