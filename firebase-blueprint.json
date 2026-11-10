@@ -1,0 +1,533 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Private authenticated student or teacher profile, study goals, weekly hours, and enrolled course progress.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "college": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "semester": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "department": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "targetSgpa": {
+          "type": "number"
+        },
+        "weeklyStudyHours": {
+          "type": "array",
+          "description": "7-day numeric array of study hours Mon-Sun."
+        },
+        "enrolledCourses": {
+          "type": "array",
+          "description": "List of enrolled course progress objects (bounded up to 100 entries)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "name", "email", "createdAt", "updatedAt"]
+    },
+    "OrderRecord": {
+      "title": "OrderRecord",
+      "description": "Course purchase order receipt owned by a signed-in user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "items": {
+          "type": "array",
+          "description": "Purchased course summary items (max 50)."
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "discount": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["UPI", "Card", "NetBanking"]
+        },
+        "transactionId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "status": {
+          "type": "string",
+          "enum": ["SUCCESS", "PENDING", "FAILED"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "studentEmail", "items", "subtotal", "discount", "total", "paymentMethod", "transactionId", "status", "createdAt"]
+    },
+    "CourseRecord": {
+      "title": "CourseRecord",
+      "description": "University course or handwritten topper notes listing.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200
+        },
+        "code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32
+        },
+        "teacher": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "teacherEmail": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "teacherUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "teacherRole": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "semester": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Full Course", "Crash Course", "Handwritten Notes", "Exam Booster"]
+        },
+        "price": {
+          "type": "number"
+        },
+        "originalPrice": {
+          "type": "number"
+        },
+        "rating": {
+          "type": "number"
+        },
+        "reviewsCount": {
+          "type": "number"
+        },
+        "enrolledCount": {
+          "type": "number"
+        },
+        "duration": {
+          "type": "string",
+          "maxLength": 48
+        },
+        "modulesCount": {
+          "type": "number"
+        },
+        "pdfPages": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "learningOutcomes": {
+          "type": "array"
+        },
+        "syllabus": {
+          "type": "array"
+        },
+        "pdfNotesUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "uploadedFileName": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "notesContent": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "isApproved": {
+          "type": "boolean"
+        },
+        "isTrending": {
+          "type": "boolean"
+        },
+        "isNew": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "title", "code", "teacher", "branch", "semester", "category", "price", "originalPrice", "description", "isApproved", "createdAt", "updatedAt"]
+    },
+    "VerifiedTeacherProfileRecord": {
+      "title": "VerifiedTeacherProfileRecord",
+      "description": "Verified teacher profile managed by Admin and publicly shown when verified and visible.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "qualification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "intro": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1500
+        },
+        "photoUrl": {
+          "type": "string",
+          "maxLength": 400000
+        },
+        "isVisible": {
+          "type": "boolean"
+        },
+        "isVerified": {
+          "type": "boolean"
+        },
+        "approvedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "email", "name", "qualification", "intro", "isVisible", "isVerified", "updatedAt"]
+    },
+    "TeacherAccessRequestRecord": {
+      "title": "TeacherAccessRequestRecord",
+      "description": "Educator email verification request awaiting Admin review.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "applicantUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "college": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "department": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "subjectsTaught": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "experienceYears": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "APPROVED", "REJECTED"]
+        },
+        "requestedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "approvedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "approvedBy": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "applicantUid", "email", "name", "college", "department", "status", "requestedAt", "createdAt", "updatedAt"]
+    },
+    "DailyNewsRecord": {
+      "title": "DailyNewsRecord",
+      "description": "University academic alert, exam schedule bulletin, or campus dispatch.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 220 },
+        "category": { "type": "string", "enum": ["Exam Alert", "Curriculum Update", "Campus News", "Tech & Placements", "Tribe Dispatch"] },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 600 },
+        "content": { "type": "string", "minLength": 2, "maxLength": 12000 },
+        "date": { "type": "string", "maxLength": 64 },
+        "readTime": { "type": "string", "maxLength": 32 },
+        "author": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "authorRole": { "type": "string", "maxLength": 140 },
+        "isBreaking": { "type": "boolean" },
+        "isPinned": { "type": "boolean" },
+        "tags": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "summary", "content", "date", "readTime", "author", "tags", "createdAt", "updatedAt"]
+    },
+    "CourseReviewRecord": {
+      "title": "CourseReviewRecord",
+      "description": "Student rating and academic review tied to a course.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courseId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "studentCollege": { "type": "string", "maxLength": 180 },
+        "studentBranch": { "type": "string", "maxLength": 120 },
+        "rating": { "type": "number" },
+        "comment": { "type": "string", "minLength": 2, "maxLength": 2000 },
+        "gradeReceived": { "type": "string", "maxLength": 80 },
+        "examType": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "verifiedCompletion": { "type": "boolean" },
+        "helpfulCount": { "type": "number" },
+        "helpfulVoterIds": { "type": "array" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "courseId", "studentId", "studentName", "rating", "comment", "createdAt", "verifiedCompletion", "helpfulCount", "helpfulVoterIds", "submittedAt", "updatedAt"]
+    },
+    "QuerySubmissionRecord": {
+      "title": "QuerySubmissionRecord",
+      "description": "Student inquiry or SOS doubt request submitted via Contact page.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicantUid": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "contactNumber": { "type": "string", "minLength": 5, "maxLength": 40 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "query": { "type": "string", "minLength": 5, "maxLength": 3000 },
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Received", "In Review", "Answered"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentName", "contactNumber", "email", "query", "timestamp", "status", "createdAt", "updatedAt"]
+    },
+    "LiveSessionRecord": {
+      "title": "LiveSessionRecord",
+      "description": "Scheduled live doubt clearing session hosted by verified faculty.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "courseCode": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "hostName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "hostEmail": { "type": "string", "maxLength": 160 },
+        "dateLabel": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "timeLabel": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "durationMinutes": { "type": "number" },
+        "roomNumber": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "meetingUrl": { "type": "string", "maxLength": 500 },
+        "agenda": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["LIVE", "UPCOMING", "COMPLETED"] },
+        "isPublished": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "courseCode", "hostName", "dateLabel", "timeLabel", "durationMinutes", "roomNumber", "status", "isPublished", "createdAt", "updatedAt"]
+    },
+    "SiteContentRecord": {
+      "title": "SiteContentRecord",
+      "description": "Admin CMS configuration storing public site sections copy.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "data": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "data", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Authorized Trust Admin UID record.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Private user account profiles, goals, study hours, and enrolled course progress."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/OrderRecord" },
+      "description": "Course purchase receipts scoped by userId."
+    },
+    "/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/CourseRecord" },
+      "description": "Platform course and handwritten note listings."
+    },
+    "/verifiedTeachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/VerifiedTeacherProfileRecord" },
+      "description": "Admin-verified teacher public profiles keyed by normalized safe email ID."
+    },
+    "/teacherAccessRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/TeacherAccessRequestRecord" },
+      "description": "Educator email verification requests for Admin review."
+    },
+    "/news/{newsId}": {
+      "schema": { "$ref": "#/entities/DailyNewsRecord" },
+      "description": "Academic alerts and Tribe dispatches."
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/CourseReviewRecord" },
+      "description": "Verified student reviews and ratings per course."
+    },
+    "/queries/{queryId}": {
+      "schema": { "$ref": "#/entities/QuerySubmissionRecord" },
+      "description": "Student support queries and SOS doubt tickets."
+    },
+    "/liveSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/LiveSessionRecord" },
+      "description": "Scheduled live doubt clearing sessions hosted by verified faculty."
+    },
+    "/siteContent/{docId}": {
+      "schema": { "$ref": "#/entities/SiteContentRecord" },
+      "description": "Site-wide CMS configuration owned by Admin."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Admin authorization registry."
+    }
+  }
+}

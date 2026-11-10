@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix Remix Remix Techie Teacher\u0027s Tribe Trust",
+  "description": "Bold, high-impact ed-tech platform providing battle-tested university courses, fast-track modules, and handwritten topper notes for college students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
