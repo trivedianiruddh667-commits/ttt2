@@ -19,6 +19,7 @@ import {
   OperationType
 } from './firebase';
 import {
+  ContentStatus,
   Course,
   CourseReview,
   DailyNewsItem,
@@ -26,6 +27,7 @@ import {
   LiveSession,
   Order,
   QuerySubmission,
+  QuickLearningItem,
   TeacherAccessRequest,
   User,
   VerifiedTeacherProfile
@@ -300,6 +302,7 @@ export function subscribePublicCourses(onCourses: (courses: Course[]) => void): 
           trendingRank: data.trendingRank !== undefined ? Number(data.trendingRank) : undefined,
           fastTrackMinutes:
             data.fastTrackMinutes !== undefined ? Number(data.fastTrackMinutes) : undefined,
+          status: (data.status || (data.isApproved ? 'published' : 'draft')) as ContentStatus,
           isApproved: Boolean(data.isApproved),
           syllabus: Array.isArray(data.syllabus) ? data.syllabus : [],
           pdfNotesUrl: data.pdfNotesUrl ? String(data.pdfNotesUrl) : undefined,
@@ -307,7 +310,7 @@ export function subscribePublicCourses(onCourses: (courses: Course[]) => void): 
           notesContent: data.notesContent ? String(data.notesContent) : undefined,
           isNew: Boolean(data.isNew)
         };
-      });
+      }).filter((c) => c.isApproved && c.status === 'published');
       onCourses(list);
     },
     (error) => {
@@ -410,6 +413,7 @@ export function subscribeAllCoursesForAdmin(onCourses: (courses: Course[]) => vo
           trendingRank: data.trendingRank !== undefined ? Number(data.trendingRank) : undefined,
           fastTrackMinutes:
             data.fastTrackMinutes !== undefined ? Number(data.fastTrackMinutes) : undefined,
+          status: (data.status || (data.isApproved ? 'published' : 'draft')) as ContentStatus,
           isApproved: Boolean(data.isApproved),
           syllabus: Array.isArray(data.syllabus) ? data.syllabus : [],
           pdfNotesUrl: data.pdfNotesUrl ? String(data.pdfNotesUrl) : undefined,
@@ -433,6 +437,8 @@ export async function saveCourseToCloud(course: Course, teacherUid?: string): Pr
 
   try {
     const existingSnap = await getDoc(courseRef);
+    const resolvedStatus: ContentStatus =
+      course.status || (course.isApproved ? 'published' : 'draft');
     const basePayload: Record<string, unknown> = {
       id: safeId,
       title: (course.title.trim() || 'Untitled Course').slice(0, 200),
@@ -451,7 +457,8 @@ export async function saveCourseToCloud(course: Course, teacherUid?: string): Pr
       modulesCount: Math.max(0, Number(course.modulesCount) || 0),
       description: (course.description.trim() || 'University exam crash notes and syllabus guide.').slice(0, 2000),
       learningOutcomes: (course.learningOutcomes || []).slice(0, 25),
-      isApproved: Boolean(course.isApproved),
+      status: resolvedStatus,
+      isApproved: resolvedStatus === 'published',
       syllabus: (course.syllabus || []).slice(0, 30),
       updatedAt: serverTimestamp()
     };
@@ -518,19 +525,27 @@ export function subscribePublicVerifiedTeachers(
   return onSnapshot(
     q,
     (snapshot) => {
-      const list: VerifiedTeacherProfile[] = snapshot.docs.map((d) => {
-        const data = d.data();
-        return {
-          id: String(data.id || d.id),
-          email: String(data.email || '').trim().toLowerCase(),
-          name: String(data.name || ''),
-          qualification: String(data.qualification || ''),
-          intro: String(data.intro || ''),
-          photoUrl: String(data.photoUrl || ''),
-          isVisible: Boolean(data.isVisible),
-          approvedAt: data.approvedAt ? String(data.approvedAt) : undefined
-        };
-      });
+      const list: VerifiedTeacherProfile[] = snapshot.docs
+        .map((d) => {
+          const data = d.data();
+          const resolvedStatus: ContentStatus =
+            (data.status as ContentStatus) || (data.isVisible ? 'published' : 'draft');
+          return {
+            id: String(data.id || d.id),
+            email: String(data.email || '').trim().toLowerCase(),
+            name: String(data.name || ''),
+            designation: data.designation ? String(data.designation) : undefined,
+            qualification: String(data.qualification || ''),
+            intro: String(data.intro || ''),
+            photoUrl: String(data.photoUrl || ''),
+            status: resolvedStatus,
+            isVisible: Boolean(data.isVisible),
+            isVerified: Boolean(data.isVerified),
+            approvedAt: data.approvedAt ? String(data.approvedAt) : undefined,
+            updatedAt: data.updatedAt ? String(data.updatedAt) : undefined
+          };
+        })
+        .filter((p) => p.isVisible && p.status === 'published');
       onProfiles(list);
     },
     (error) => {
@@ -550,15 +565,21 @@ export function subscribeAllVerifiedTeachersForAdmin(
       snapshot.docs.forEach((d) => {
         const data = d.data();
         const email = String(data.email || '').trim().toLowerCase();
+        const resolvedStatus: ContentStatus =
+          (data.status as ContentStatus) || (data.isVisible ? 'published' : 'draft');
         list.push({
           id: String(data.id || d.id),
           email,
           name: String(data.name || ''),
+          designation: data.designation ? String(data.designation) : undefined,
           qualification: String(data.qualification || ''),
           intro: String(data.intro || ''),
           photoUrl: String(data.photoUrl || ''),
+          status: resolvedStatus,
           isVisible: Boolean(data.isVisible),
-          approvedAt: data.approvedAt ? String(data.approvedAt) : undefined
+          isVerified: Boolean(data.isVerified),
+          approvedAt: data.approvedAt ? String(data.approvedAt) : undefined,
+          updatedAt: data.updatedAt ? String(data.updatedAt) : undefined
         });
         if (data.isVerified === true && email) {
           emails.push(email);
@@ -578,19 +599,26 @@ export async function saveVerifiedTeacherToCloud(
 ): Promise<void> {
   const docId = emailToSafeDocId(profile.email);
   const path = `verifiedTeachers/${docId}`;
+  const resolvedStatus: ContentStatus =
+    profile.status || (profile.isVisible ? 'published' : 'draft');
   try {
-    await setDoc(doc(db, 'verifiedTeachers', docId), {
+    const payload: Record<string, unknown> = {
       id: docId,
       email: profile.email.trim().toLowerCase().slice(0, 160),
       name: (profile.name.trim() || 'Verified Faculty').slice(0, 120),
       qualification: (profile.qualification.trim() || 'Verified University Educator').slice(0, 240),
       intro: (profile.intro.trim() || 'Verified faculty member at Techie Teacher’s Tribe Trust.').slice(0, 1500),
       photoUrl: (profile.photoUrl || '').slice(0, 400000),
-      isVisible: Boolean(profile.isVisible),
+      status: resolvedStatus,
+      isVisible: resolvedStatus === 'published',
       isVerified: Boolean(isVerified),
       approvedAt: (profile.approvedAt || 'Verified').slice(0, 64),
       updatedAt: serverTimestamp()
-    });
+    };
+    if (profile.designation) {
+      payload.designation = profile.designation.slice(0, 160);
+    }
+    await setDoc(doc(db, 'verifiedTeachers', docId), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -1155,4 +1183,126 @@ export async function saveSiteContentToCloud(content: SiteContent): Promise<void
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+// ============================================================
+// QUICK LEARNING MANAGEMENT SYNC
+// ============================================================
+
+export function subscribePublicQuickLearning(
+  onItems: (items: QuickLearningItem[]) => void
+): Unsubscribe {
+  const q = query(collection(db, 'quickLearning'), where('status', '==', 'published'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: QuickLearningItem[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: String(data.id || d.id),
+          title: String(data.title || ''),
+          topic: String(data.topic || ''),
+          subject: String(data.subject || ''),
+          category: (data.category || 'Fast-Track Sprint') as QuickLearningItem['category'],
+          description: String(data.description || ''),
+          duration: String(data.duration || '120 Mins'),
+          imageUrl: data.imageUrl ? String(data.imageUrl) : undefined,
+          videoUrl: data.videoUrl ? String(data.videoUrl) : undefined,
+          learningMaterialsUrl: data.learningMaterialsUrl ? String(data.learningMaterialsUrl) : undefined,
+          materialsFileName: data.materialsFileName ? String(data.materialsFileName) : undefined,
+          keyPoints: Array.isArray(data.keyPoints) ? data.keyPoints : [],
+          status: (data.status || 'published') as ContentStatus,
+          viewsCount: Number(data.viewsCount || 0),
+          createdAt: data.createdAt ? String(data.createdAt) : undefined,
+          updatedAt: data.updatedAt ? String(data.updatedAt) : undefined
+        };
+      });
+      onItems(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'quickLearning');
+    }
+  );
+}
+
+export function subscribeAllQuickLearningForAdmin(
+  onItems: (items: QuickLearningItem[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, 'quickLearning'),
+    (snapshot) => {
+      const list: QuickLearningItem[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: String(data.id || d.id),
+          title: String(data.title || ''),
+          topic: String(data.topic || ''),
+          subject: String(data.subject || ''),
+          category: (data.category || 'Fast-Track Sprint') as QuickLearningItem['category'],
+          description: String(data.description || ''),
+          duration: String(data.duration || '120 Mins'),
+          imageUrl: data.imageUrl ? String(data.imageUrl) : undefined,
+          videoUrl: data.videoUrl ? String(data.videoUrl) : undefined,
+          learningMaterialsUrl: data.learningMaterialsUrl ? String(data.learningMaterialsUrl) : undefined,
+          materialsFileName: data.materialsFileName ? String(data.materialsFileName) : undefined,
+          keyPoints: Array.isArray(data.keyPoints) ? data.keyPoints : [],
+          status: (data.status || 'draft') as ContentStatus,
+          viewsCount: Number(data.viewsCount || 0),
+          createdAt: data.createdAt ? String(data.createdAt) : undefined,
+          updatedAt: data.updatedAt ? String(data.updatedAt) : undefined
+        };
+      });
+      onItems(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'quickLearning');
+    }
+  );
+}
+
+export async function saveQuickLearningToCloud(item: QuickLearningItem): Promise<void> {
+  const safeId = sanitizeDocId(item.id, 'ql');
+  const path = `quickLearning/${safeId}`;
+  const refDoc = doc(db, 'quickLearning', safeId);
+  try {
+    const existingSnap = await getDoc(refDoc);
+    const payload: Record<string, unknown> = {
+      id: safeId,
+      title: (item.title.trim() || 'Untitled Topic').slice(0, 200),
+      topic: (item.topic.trim() || 'Core Exam Concepts').slice(0, 200),
+      subject: (item.subject.trim() || 'Engineering Systems').slice(0, 120),
+      category: item.category,
+      description: (item.description.trim() || 'Fast-track sprint notes and derivations.').slice(0, 3000),
+      duration: (item.duration || '120 Mins').slice(0, 48),
+      status: item.status || 'draft',
+      keyPoints: (item.keyPoints || []).slice(0, 20),
+      viewsCount: Math.max(0, Number(item.viewsCount) || 0),
+      updatedAt: serverTimestamp()
+    };
+    if (item.imageUrl) payload.imageUrl = item.imageUrl.slice(0, 500000);
+    if (item.videoUrl) payload.videoUrl = item.videoUrl.slice(0, 500);
+    if (item.learningMaterialsUrl) payload.learningMaterialsUrl = item.learningMaterialsUrl.slice(0, 500);
+    if (item.materialsFileName) payload.materialsFileName = item.materialsFileName.slice(0, 160);
+
+    if (existingSnap.exists()) {
+      payload.createdAt = existingSnap.data().createdAt;
+      await setDoc(refDoc, payload);
+    } else {
+      payload.createdAt = serverTimestamp();
+      await setDoc(refDoc, payload);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteQuickLearningFromCloud(itemId: string): Promise<void> {
+  const safeId = sanitizeDocId(itemId, 'ql');
+  const path = `quickLearning/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'quickLearning', safeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
 

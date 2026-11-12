@@ -1,3 +1,5 @@
+export type ContentStatus = 'draft' | 'published' | 'archived';
+
 export interface Course {
   id: string;
   title: string;
@@ -22,6 +24,7 @@ export interface Course {
   isTrending?: boolean;
   trendingRank?: number;
   fastTrackMinutes?: number;
+  status: ContentStatus;
   isApproved: boolean;
   syllabus: { title: string; duration: string; topics: string[] }[];
   pdfNotesUrl?: string;
@@ -29,6 +32,25 @@ export interface Course {
   notesContent?: string;
   isNew?: boolean;
   createdAt?: string;
+}
+
+export interface QuickLearningItem {
+  id: string;
+  title: string;
+  topic: string;
+  subject: string;
+  category: 'Crash Course' | 'Exam Booster' | 'Handwritten Notes' | 'Fast-Track Sprint' | 'Cheat Sheet';
+  description: string;
+  duration: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  learningMaterialsUrl?: string;
+  materialsFileName?: string;
+  keyPoints: string[];
+  status: ContentStatus;
+  viewsCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const normalizeHonorificName = (raw: string): string =>
@@ -161,10 +183,13 @@ export interface VerifiedTeacherProfile {
   id: string;
   email: string;
   name: string;
+  designation?: string;
   qualification: string;
   intro: string;
   photoUrl: string;
+  status: ContentStatus;
   isVisible: boolean;
+  isVerified?: boolean;
   approvedAt?: string;
   updatedAt?: string;
 }
@@ -339,7 +364,8 @@ export const INITIAL_COURSES: Course[] = [
     ],
     isTrending: true,
     trendingRank: 1,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     syllabus: [
       { title: 'Module 1: Asymptotic Analysis & Recurrences', duration: '2h 15m', topics: ['Big-O, Omega, Theta', 'Master Theorem tricks', 'Recursive tree methods'] },
       { title: 'Module 2: Advanced Linear Structures & Pointer Magic', duration: '3h 40m', topics: ['Circular DLL', 'Skip lists', 'Stack application in compiler evaluation'] },
@@ -375,7 +401,8 @@ export const INITIAL_COURSES: Course[] = [
     isTrending: true,
     trendingRank: 2,
     fastTrackMinutes: 180,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     syllabus: [
       { title: 'Module 1: Process Management & Inter-process Communication', duration: '2h 10m', topics: ['Process states', 'Fork mechanics', 'Context switching'] },
       { title: 'Module 2: CPU Scheduling Numerical Mastery', duration: '2h 45m', topics: ['Round Robin Gantt charts', 'Preemptive SJF/SRTF', 'Priority scheduling'] },
@@ -411,7 +438,8 @@ export const INITIAL_COURSES: Course[] = [
     isTrending: true,
     trendingRank: 3,
     fastTrackMinutes: 120,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     syllabus: [
       { title: 'Module 1: Laplace Transforms & Inverse Transforms', duration: '2h 30m', topics: ['First & second shifting theorems', 'Convolution theorem', 'Dirac Delta functions'] },
       { title: 'Module 2: Fourier Analysis & Half-Range Expansions', duration: '2h 10m', topics: ['Euler formulas', 'Odd/even functions', 'Parseval identity'] },
@@ -444,7 +472,8 @@ export const INITIAL_COURSES: Course[] = [
       'Quick revision summary flash-notes'
     ],
     isTrending: false,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     syllabus: [
       { title: 'Module 1: Relational Model & ER Design', duration: '1h 20m', topics: ['Entity-relationship mappings', 'Relational algebra operators', 'Tuple relational calculus'] },
       { title: 'Module 2: Functional Dependencies & Normal Forms', duration: '2h 00m', topics: ['Attribute closure', '1NF, 2NF, 3NF, BCNF decomposition', 'Lossless join test'] },
@@ -478,7 +507,8 @@ export const INITIAL_COURSES: Course[] = [
     ],
     isTrending: true,
     trendingRank: 4,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     syllabus: [
       { title: 'Module 1: Boolean Algebra & Logic Minimization', duration: '3h 10m', topics: ['SOP and POS forms', 'Quine-McCluskey method', 'Hazard detection'] },
       { title: 'Module 2: Combinational & Sequential Circuit Design', duration: '5h 30m', topics: ['Multiplexers as universal logic', 'Flip-flop conversions', 'State reduction'] },
@@ -513,7 +543,8 @@ export const INITIAL_COURSES: Course[] = [
     isTrending: true,
     trendingRank: 5,
     fastTrackMinutes: 90,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     isNew: true,
     createdAt: '2026-11-04',
     syllabus: [
@@ -550,7 +581,8 @@ export const INITIAL_COURSES: Course[] = [
     ],
     isTrending: true,
     trendingRank: 6,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     isNew: true,
     createdAt: '2026-11-08',
     syllabus: [
@@ -586,7 +618,8 @@ export const INITIAL_COURSES: Course[] = [
       'Decidability & Post Correspondence Problem (PCP) exam templates'
     ],
     isTrending: false,
-    isApproved: true,
+    status: 'draft',
+    isApproved: false,
     isNew: true,
     createdAt: '2026-11-09',
     syllabus: [
@@ -897,11 +930,13 @@ export const INITIAL_TEACHER_PROFILES: VerifiedTeacherProfile[] = [
     id: 'TPROF-4002',
     email: 'alok.verma@techieteachertribe.org',
     name: 'Prof. Alok Verma',
+    designation: 'Head of Algorithms & Systems',
     qualification: 'M.Tech CSE (IIT Delhi) · 9 Years Teaching',
     intro:
       'Former IIT Delhi researcher specializing in Data Structures, Algorithms, and Compiler Design. Known for turning complex AVL rotations, DP recurrences, and LR(1) parsing tables into visual exam-ready blueprints.',
     photoUrl: '/src/assets/images/student_desk_bw_1793717857911.jpg',
-    isVisible: true,
+    status: 'draft',
+    isVisible: false,
     approvedAt: '01 Oct 2026, 11:30 AM',
     updatedAt: '01 Oct 2026, 11:30 AM'
   },
@@ -909,13 +944,104 @@ export const INITIAL_TEACHER_PROFILES: VerifiedTeacherProfile[] = [
     id: 'TPROF-4001',
     email: 'sneha.iyer@techieteachertribe.org',
     name: 'Dr. Sneha Iyer',
+    designation: 'Senior Academician — Applied Mathematics',
     qualification: 'Ph.D. Applied Mathematics · 11 Years Teaching',
     intro:
       'Doctorate in Applied Mathematics and Senior Academician for Engineering Mathematics III & Automata Theory. Famous across campuses for distilling 40-step Laplace, Fourier, and Pumping Lemma proofs into 3-step algorithms.',
     photoUrl: '/src/assets/images/tribe_campus_bw_1793717857750.jpg',
-    isVisible: true,
+    status: 'draft',
+    isVisible: false,
     approvedAt: '01 Oct 2026, 11:30 AM',
     updatedAt: '01 Oct 2026, 11:30 AM'
+  }
+];
+
+export const INITIAL_QUICK_LEARNING_ITEMS: QuickLearningItem[] = [
+  {
+    id: 'ql-item-1',
+    title: 'Dynamic Programming: 3-Hour End-Term Sprint',
+    topic: 'DP State Transitions, Memoization & Tabulation Matrices',
+    subject: 'Data Structures & Algorithms (CS-301)',
+    category: 'Fast-Track Sprint',
+    description:
+      'Master 0/1 Knapsack, Matrix Chain Multiplication, and Longest Common Subsequence derivation templates for 10-mark university end-term questions.',
+    duration: '180 Mins',
+    imageUrl: '/src/assets/images/student_desk_bw_1793717857911.jpg',
+    videoUrl: 'https://www.youtube.com/watch?v=oBt53YbR9Kk',
+    materialsFileName: 'DP_FastTrack_Cheatsheet.pdf',
+    keyPoints: [
+      'Step-by-step matrix tabulation rules and pointer indexing',
+      'Space complexity reduction tricks from O(N^2) to O(N)',
+      'Solved 10-year recurring university numerical questions'
+    ],
+    status: 'draft',
+    viewsCount: 3420,
+    createdAt: '2026-11-01',
+    updatedAt: '2026-11-01'
+  },
+  {
+    id: 'ql-item-2',
+    title: 'Banker’s Algorithm & Semaphores Concurrency Sprint',
+    topic: 'Process Deadlock Avoidance & Synchronization Proofs',
+    subject: 'Operating Systems (CS-402)',
+    category: 'Exam Booster',
+    description:
+      'Banker’s safe sequence matrices, Peterson’s solution proofs, and Round-Robin Gantt chart calculations with zero ambiguity.',
+    duration: '120 Mins',
+    imageUrl: '/src/assets/images/tribe_campus_bw_1793717857750.jpg',
+    videoUrl: 'https://www.youtube.com/watch?v=2y48sP-rFqI',
+    materialsFileName: 'OS_Concurrency_Derivation_Vault.pdf',
+    keyPoints: [
+      'Safe state calculation algorithm with step-by-step table fills',
+      'Dining philosophers semaphore implementation blueprint',
+      'Paging TLB miss rate formulas and page replacement criteria'
+    ],
+    status: 'draft',
+    viewsCount: 2890,
+    createdAt: '2026-11-02',
+    updatedAt: '2026-11-02'
+  },
+  {
+    id: 'ql-item-3',
+    title: 'Laplace & Fourier Transforms 90-Minute Derivation Vault',
+    topic: 'Convolution Theorems & Differential Equation Shortcuts',
+    subject: 'Engineering Mathematics III (MATH-201)',
+    category: 'Cheat Sheet',
+    description:
+      'High-contrast formula blueprints for Dirac Delta functions, inverse Laplace shifting theorems, and half-range Fourier expansions.',
+    duration: '90 Mins',
+    imageUrl: '/src/assets/images/student_desk_bw_1793717857911.jpg',
+    materialsFileName: 'Math3_Formula_Vault_Printable.pdf',
+    keyPoints: [
+      'First and second shifting theorems with 3-step solution templates',
+      'Parseval identity and Fourier series calculation proofs',
+      'Residue theorem shortcuts for complex contour integrals'
+    ],
+    status: 'draft',
+    viewsCount: 4120,
+    createdAt: '2026-11-03',
+    updatedAt: '2026-11-03'
+  },
+  {
+    id: 'ql-item-4',
+    title: 'BCNF & 3NF Normalization Decomposition Guide',
+    topic: 'Functional Dependencies & Lossless Join Tests',
+    subject: 'Database Management Systems (CS-304)',
+    category: 'Handwritten Notes',
+    description:
+      'Step-by-step canonical cover calculation, dependency preservation checking, and precedence graph serializability algorithms.',
+    duration: '75 Mins',
+    imageUrl: '/src/assets/images/tribe_campus_bw_1793717857750.jpg',
+    materialsFileName: 'DBMS_Normalization_Handwritten.pdf',
+    keyPoints: [
+      'Attribute closure calculation rules for candidate key finding',
+      'Lossless join decomposition test algorithm',
+      'Conflict serializability vs view serializability comparison table'
+    ],
+    status: 'draft',
+    viewsCount: 1980,
+    createdAt: '2026-11-04',
+    updatedAt: '2026-11-04'
   }
 ];
 

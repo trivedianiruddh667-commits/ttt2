@@ -80,7 +80,7 @@ export const AdminCMSManager: React.FC<AdminCMSManagerProps> = ({
           experience: 'Content & Research Lead',
           rating: 4.97,
           impactMetric: 'CURRICULUM RESEARCH LEAD',
-          imageUrl: '/assets/aistudio/Aryan_photo_2feeb48f.png'
+          imageUrl: '/assets/aistudio/WhatsApp_Image_2026-11-12_at_13.57.50_756694f5.jpeg'
         }
       ];
     }

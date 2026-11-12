@@ -12,13 +12,17 @@ import {
   Mail,
   Trash2
 } from 'lucide-react';
+import { uploadMediaToCloud } from '../lib/firebase';
+import { ContentStatus } from '../data/db';
 
 export interface TeacherProfileFormData {
   email: string;
   name: string;
+  designation?: string;
   qualification: string;
   intro: string;
   photoUrl: string;
+  status?: ContentStatus;
   isVisible: boolean;
 }
 
@@ -53,9 +57,11 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
   onSubmit
 }) => {
   const [name, setName] = useState('');
+  const [designation, setDesignation] = useState('');
   const [qualification, setQualification] = useState('');
   const [intro, setIntro] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [status, setStatus] = useState<ContentStatus>('draft');
   const [isVisible, setIsVisible] = useState(true);
   const [photoError, setPhotoError] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -65,10 +71,13 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
   useEffect(() => {
     if (isOpen && initialData) {
       setName(initialData.name || '');
+      setDesignation(initialData.designation || '');
       setQualification(initialData.qualification || '');
       setIntro(initialData.intro || '');
       setPhotoUrl(initialData.photoUrl || '');
-      setIsVisible(initialData.isVisible ?? true);
+      const initialStatus = initialData.status || (initialData.isVisible ? 'published' : 'draft');
+      setStatus(initialStatus);
+      setIsVisible(initialStatus === 'published');
       setPhotoError(false);
       setUploadError(null);
       setIsCompressingPhoto(false);
@@ -165,9 +174,21 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
     setIsCompressingPhoto(true);
     setUploadError(null);
     try {
-      const compressedDataUrl = await compressImageToDataUrl(file);
-      setPhotoUrl(compressedDataUrl);
-      setPhotoError(false);
+      let cloudUrl: string | null = null;
+      try {
+        cloudUrl = await uploadMediaToCloud(file, 'teachers');
+      } catch (storageErr) {
+        console.warn('Storage upload fallback to compressed data URL:', storageErr);
+      }
+
+      if (cloudUrl && cloudUrl.startsWith('http')) {
+        setPhotoUrl(cloudUrl);
+        setPhotoError(false);
+      } else {
+        const compressedDataUrl = await compressImageToDataUrl(file);
+        setPhotoUrl(compressedDataUrl);
+        setPhotoError(false);
+      }
     } catch (err) {
       setUploadError(
         err instanceof Error
@@ -186,13 +207,16 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
       setUploadError('Photo URL / data exceeds Firestore 395 KB limit. Please upload via device button or use a shorter image URL.');
       return;
     }
+    const currentStatus = status;
     onSubmit({
       email: normalizedEmail,
       name: name.trim(),
+      designation: designation.trim() || undefined,
       qualification: qualification.trim(),
       intro: intro.trim(),
       photoUrl: photoUrl.trim(),
-      isVisible
+      status: currentStatus,
+      isVisible: currentStatus === 'published'
     });
     onClose();
   };
@@ -389,7 +413,7 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Name & Qualification */}
+          {/* Name & Designation */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-widest text-zinc-400 mb-1">
@@ -407,17 +431,31 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-widest text-zinc-400 mb-1">
-                Qualification & Credentials *
+                Designation / Role
               </label>
               <input
                 type="text"
-                required
-                value={qualification}
-                onChange={(e) => setQualification(e.target.value)}
-                placeholder="e.g. Ph.D. Computer Science · 8 Years Teaching"
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                placeholder="e.g. Senior Faculty - Mathematics"
                 className="w-full bg-black border-2 border-zinc-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-white"
               />
             </div>
+          </div>
+
+          {/* Qualification & Credentials */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-zinc-400 mb-1">
+              Qualification & Credentials *
+            </label>
+            <input
+              type="text"
+              required
+              value={qualification}
+              onChange={(e) => setQualification(e.target.value)}
+              placeholder="e.g. Ph.D. Computer Science · 8 Years Teaching · Ex-IIT Faculty"
+              className="w-full bg-black border-2 border-zinc-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-white"
+            />
           </div>
 
           {/* Small Intro */}
@@ -440,34 +478,68 @@ export const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
             />
           </div>
 
-          {/* Visibility Switch */}
-          <div className="p-4 bg-black border-2 border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-heading font-black uppercase text-white flex items-center gap-2">
-                {isVisible ? (
-                  <Eye className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <EyeOff className="w-4 h-4 text-zinc-400" />
-                )}
-                <span>
-                  {isVisible ? 'Visible on Public Teachers Page' : 'Hidden from Public Teachers Page'}
+          {/* Publishing Status Selector */}
+          <div className="p-4 bg-black border-2 border-zinc-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-heading font-black uppercase text-white flex items-center gap-2">
+                  {status === 'published' ? (
+                    <Eye className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <EyeOff className="w-4 h-4 text-zinc-400" />
+                  )}
+                  <span>Publishing Status</span>
                 </span>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Only <strong>Published</strong> teacher profiles appear on the public website. Draft and Archived profiles stay private in Admin.
+                </p>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Only active verified teacher emails with visibility enabled are displayed to website visitors.
-              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsVisible(!isVisible)}
-              className={`px-3.5 py-2 border-2 text-xs font-mono-numbers font-black uppercase transition-colors shrink-0 ${
-                isVisible
-                  ? 'border-emerald-400 bg-emerald-500 text-black'
-                  : 'border-zinc-600 bg-zinc-900 text-zinc-300 hover:border-white'
-              }`}
-            >
-              {isVisible ? 'PUBLIC: ON' : 'PUBLIC: OFF'}
-            </button>
+
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus('draft');
+                  setIsVisible(false);
+                }}
+                className={`py-2 px-3 border-2 text-xs font-mono-numbers font-black uppercase transition-colors ${
+                  status === 'draft'
+                    ? 'border-amber-400 bg-amber-400 text-black'
+                    : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-white hover:text-white'
+                }`}
+              >
+                Draft (Private)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus('published');
+                  setIsVisible(true);
+                }}
+                className={`py-2 px-3 border-2 text-xs font-mono-numbers font-black uppercase transition-colors ${
+                  status === 'published'
+                    ? 'border-emerald-400 bg-emerald-500 text-black'
+                    : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-white hover:text-white'
+                }`}
+              >
+                Published (Live)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus('archived');
+                  setIsVisible(false);
+                }}
+                className={`py-2 px-3 border-2 text-xs font-mono-numbers font-black uppercase transition-colors ${
+                  status === 'archived'
+                    ? 'border-zinc-400 bg-zinc-700 text-white'
+                    : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-white hover:text-white'
+                }`}
+              >
+                Archived
+              </button>
+            </div>
           </div>
 
           {/* Modal Footer Buttons */}

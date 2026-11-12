@@ -13,8 +13,13 @@ import {
 import {
   auth,
   googleProvider,
-  BOOTSTRAPPED_ADMIN_EMAIL
+  BOOTSTRAPPED_ADMIN_EMAIL,
+  AUTHORIZED_ADMIN_EMAILS,
+  isAuthorizedAdminEmail,
+  formatFirebaseAuthError,
+  db
 } from './lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import {
   syncUserProfileOnAuth,
   updateUserEnrolledCoursesInCloud,
@@ -159,7 +164,8 @@ export default function App() {
             parsed.team.technicalMembers[1].role = 'Researcher and Content Organiser';
             parsed.team.technicalMembers[1].domain =
               'Structuring Raw Information Into Organised Digital Assets, Websites And Knowledge Bases';
-            parsed.team.technicalMembers[1].imageUrl = '/assets/aistudio/Aryan_photo_2feeb48f.png';
+            parsed.team.technicalMembers[1].imageUrl =
+              '/assets/aistudio/WhatsApp_Image_2026-11-12_at_13.57.50_756694f5.jpeg';
           }
         }
         return parsed;
@@ -450,7 +456,7 @@ export default function App() {
   const isFirebaseAdmin = Boolean(
     firebaseUser &&
       firebaseUser.emailVerified &&
-      firebaseUser.email?.trim().toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase()
+      isAuthorizedAdminEmail(firebaseUser.email)
   );
 
   // 1. Firebase Auth State Listener & User Profile Sync
@@ -469,7 +475,7 @@ export default function App() {
 
       const normEmail = (fbUser.email || '').trim().toLowerCase();
       const isFbAdmin = Boolean(
-        fbUser.emailVerified && normEmail === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase()
+        fbUser.emailVerified && isAuthorizedAdminEmail(normEmail)
       );
 
       if (currentUserRef.current?.role === 'admin' && isFbAdmin) {
@@ -489,7 +495,7 @@ export default function App() {
         const isTeacher = verifiedEmailsRef.current.includes(normEmail);
         setCurrentUser({
           ...synced.user,
-          role: isTeacher ? 'teacher' : 'student'
+          role: isFbAdmin ? 'admin' : isTeacher ? 'teacher' : 'student'
         });
         setEnrolledCourses(synced.enrolledCourses);
       } catch (err) {
@@ -502,21 +508,16 @@ export default function App() {
 
   // 2. Real-time Firestore Listeners: Courses
   useEffect(() => {
-    const mergeCourses = (prev: Course[], cloudList: Course[]): Course[] => {
-      if (cloudList.length === 0) return prev;
-      const cloudMap = new Map(cloudList.map((c) => [c.id, c]));
-      const updatedExisting = prev.map((c) => cloudMap.get(c.id) || c);
-      const existingIds = new Set(prev.map((c) => c.id));
-      const newFromCloud = cloudList.filter((c) => !existingIds.has(c.id));
-      return [...newFromCloud, ...updatedExisting];
-    };
-
     const unsubMain = isFirebaseAdmin
       ? subscribeAllCoursesForAdmin((cloudCourses) => {
-          setCourses((prev) => mergeCourses(prev, cloudCourses));
+          if (cloudCourses.length > 0) {
+            setCourses(cloudCourses);
+          }
         })
       : subscribePublicCourses((cloudCourses) => {
-          setCourses((prev) => mergeCourses(prev, cloudCourses));
+          if (cloudCourses.length > 0) {
+            setCourses(cloudCourses);
+          }
         });
 
     let unsubOwn: (() => void) | undefined;
@@ -526,7 +527,13 @@ export default function App() {
       checkTeacherVerifiedInCloud(normEmail).then((existsInCloud) => {
         if (!cancelled && existsInCloud && firebaseUser.uid) {
           unsubOwn = subscribeTeacherOwnCourses(firebaseUser.uid, (ownCourses) => {
-            setCourses((prev) => mergeCourses(prev, ownCourses));
+            setCourses((prev) => {
+              const map = new Map(prev.map((c) => [c.id, c]));
+              for (const oc of ownCourses) {
+                map.set(oc.id, oc);
+              }
+              return Array.from(map.values());
+            });
           });
         }
       });
@@ -543,51 +550,21 @@ export default function App() {
   useEffect(() => {
     if (isFirebaseAdmin) {
       return subscribeAllVerifiedTeachersForAdmin((cloudProfiles, cloudVerifiedEmails) => {
-        if (cloudProfiles.length === 0) return;
-        const cloudByEmail = new Map(
-          cloudProfiles.map((p) => [p.email.trim().toLowerCase(), p])
-        );
-        setTeacherProfiles((prev) => {
-          const updated = prev.map((p) => cloudByEmail.get(p.email.trim().toLowerCase()) || p);
-          const prevEmails = new Set(prev.map((p) => p.email.trim().toLowerCase()));
-          const added = cloudProfiles.filter(
-            (cp) => !prevEmails.has(cp.email.trim().toLowerCase())
-          );
-          return [...added, ...updated];
-        });
-        const cloudVerifiedSet = new Set(cloudVerifiedEmails);
-        setVerifiedTeacherEmails((prev) => {
-          const filtered = prev.filter((em) => {
-            const norm = em.trim().toLowerCase();
-            return !cloudByEmail.has(norm) || cloudVerifiedSet.has(norm);
-          });
-          const existingSet = new Set(filtered.map((e) => e.trim().toLowerCase()));
-          const newVerified = cloudVerifiedEmails.filter((e) => !existingSet.has(e));
-          return [...newVerified, ...filtered];
-        });
+        if (cloudProfiles.length > 0) {
+          setTeacherProfiles(cloudProfiles);
+        }
+        if (cloudVerifiedEmails.length > 0) {
+          setVerifiedTeacherEmails(cloudVerifiedEmails);
+        }
       });
     }
 
     return subscribePublicVerifiedTeachers((cloudPublicProfiles) => {
-      if (cloudPublicProfiles.length === 0) return;
-      const cloudByEmail = new Map(
-        cloudPublicProfiles.map((p) => [p.email.trim().toLowerCase(), p])
-      );
-      setTeacherProfiles((prev) => {
-        const updated = prev.map((p) => cloudByEmail.get(p.email.trim().toLowerCase()) || p);
-        const prevEmails = new Set(prev.map((p) => p.email.trim().toLowerCase()));
-        const added = cloudPublicProfiles.filter(
-          (cp) => !prevEmails.has(cp.email.trim().toLowerCase())
-        );
-        return [...added, ...updated];
-      });
-      setVerifiedTeacherEmails((prev) => {
-        const existingSet = new Set(prev.map((e) => e.trim().toLowerCase()));
-        const newVerified = cloudPublicProfiles
-          .map((p) => p.email.trim().toLowerCase())
-          .filter((em) => em && !existingSet.has(em));
-        return newVerified.length > 0 ? [...newVerified, ...prev] : prev;
-      });
+      if (cloudPublicProfiles.length > 0) {
+        setTeacherProfiles(cloudPublicProfiles);
+        const verifiedEmails = cloudPublicProfiles.map((p) => p.email.trim().toLowerCase());
+        setVerifiedTeacherEmails((prev) => Array.from(new Set([...verifiedEmails, ...prev])));
+      }
     });
   }, [isFirebaseAdmin]);
 
@@ -600,23 +577,18 @@ export default function App() {
   }, [firebaseUser?.uid]);
 
   useEffect(() => {
-    const mergeRequests = (prev: TeacherAccessRequest[], cloudReqs: TeacherAccessRequest[]) => {
-      if (cloudReqs.length === 0) return prev;
-      const cloudMap = new Map(cloudReqs.map((r) => [r.id, r]));
-      const updated = prev.map((r) => cloudMap.get(r.id) || r);
-      const prevIds = new Set(prev.map((r) => r.id));
-      const added = cloudReqs.filter((r) => !prevIds.has(r.id));
-      return [...added, ...updated];
-    };
-
     if (isFirebaseAdmin) {
       return subscribeAllTeacherRequestsForAdmin((cloudReqs) => {
-        setTeacherRequests((prev) => mergeRequests(prev, cloudReqs));
+        if (cloudReqs.length > 0) {
+          setTeacherRequests(cloudReqs);
+        }
       });
     }
     if (firebaseUser?.uid) {
       return subscribeTeacherRequestsForUser(firebaseUser.uid, (cloudReqs) => {
-        setTeacherRequests((prev) => mergeRequests(prev, cloudReqs));
+        if (cloudReqs.length > 0) {
+          setTeacherRequests(cloudReqs);
+        }
       });
     }
   }, [isFirebaseAdmin, firebaseUser?.uid]);
@@ -624,54 +596,30 @@ export default function App() {
   // 5. Real-time Firestore Listeners: News, Reviews, Queries, Live Sessions & CMS SiteContent
   useEffect(() => {
     return subscribePublicNews((cloudNews) => {
-      if (cloudNews.length === 0) return;
-      setNews((prev) => {
-        const cloudMap = new Map(cloudNews.map((n) => [n.id, n]));
-        const updated = prev.map((n) => cloudMap.get(n.id) || n);
-        const existingIds = new Set(prev.map((n) => n.id));
-        const added = cloudNews.filter((n) => !existingIds.has(n.id));
-        return [...added, ...updated];
-      });
+      if (cloudNews.length > 0) {
+        setNews(cloudNews);
+      }
     });
   }, []);
 
   useEffect(() => {
     return subscribeCourseReviews((cloudReviews) => {
-      if (cloudReviews.length === 0) return;
-      setReviews((prev) => {
-        const cloudMap = new Map(cloudReviews.map((r) => [r.id, r]));
-        const updated = prev.map((r) => cloudMap.get(r.id) || r);
-        const existingIds = new Set(prev.map((r) => r.id));
-        const added = cloudReviews.filter((r) => !existingIds.has(r.id));
-        return [...added, ...updated];
-      });
+      if (cloudReviews.length > 0) {
+        setReviews(cloudReviews);
+      }
     });
   }, []);
 
   useEffect(() => {
     if (!isFirebaseAdmin) return;
     return subscribeAllQueriesForAdmin((cloudQueries) => {
-      if (cloudQueries.length === 0) return;
-      setQueries((prev) => {
-        const cloudMap = new Map(cloudQueries.map((q) => [q.id, q]));
-        const updated = prev.map((q) => cloudMap.get(q.id) || q);
-        const existingIds = new Set(prev.map((q) => q.id));
-        const added = cloudQueries.filter((q) => !existingIds.has(q.id));
-        return [...added, ...updated];
-      });
+      if (cloudQueries.length > 0) {
+        setQueries(cloudQueries);
+      }
     });
   }, [isFirebaseAdmin]);
 
   useEffect(() => {
-    const mergeSessions = (prev: LiveSession[], cloudList: LiveSession[]) => {
-      if (cloudList.length === 0) return prev;
-      const cloudMap = new Map(cloudList.map((s) => [s.id, s]));
-      const updated = prev.map((s) => cloudMap.get(s.id) || s);
-      const existingIds = new Set(prev.map((s) => s.id));
-      const added = cloudList.filter((s) => !existingIds.has(s.id));
-      return [...added, ...updated];
-    };
-
     const isCloudTeacher = Boolean(
       firebaseUser?.emailVerified &&
         verifiedTeacherEmails.includes((firebaseUser.email || '').trim().toLowerCase())
@@ -679,19 +627,49 @@ export default function App() {
 
     if (isFirebaseAdmin || isCloudTeacher) {
       return subscribeAllLiveSessionsForAdmin((cloudList) => {
-        setLiveSessions((prev) => mergeSessions(prev, cloudList));
+        if (cloudList.length > 0) {
+          setLiveSessions(cloudList);
+        }
       });
     }
     return subscribePublishedLiveSessions((cloudList) => {
-      setLiveSessions((prev) => mergeSessions(prev, cloudList));
+      if (cloudList.length > 0) {
+        setLiveSessions(cloudList);
+      }
     });
   }, [isFirebaseAdmin, firebaseUser?.emailVerified, firebaseUser?.email, verifiedTeacherEmails]);
 
   useEffect(() => {
     return subscribeSiteContent((cloudPatch) => {
-      setSiteContent((prev) => ({ ...prev, ...cloudPatch }));
+      if (cloudPatch && Object.keys(cloudPatch).length > 0) {
+        setSiteContent((prev) => ({ ...prev, ...cloudPatch }));
+      }
     });
   }, []);
+
+  // 6. Automatic One-Time Seed to Cloud Firestore when Admin Connects
+  useEffect(() => {
+    if (!isFirebaseAdmin) return;
+    let isCancelled = false;
+
+    const bootstrapCloudIfNeeded = async () => {
+      try {
+        const siteDoc = await getDoc(doc(db, 'siteContent', 'main'));
+        if (!siteDoc.exists() && !isCancelled) {
+          console.log('Seeding initial site content and catalog to Firestore...');
+          await handleSyncCatalogToCloud();
+          showToast('Initial catalog and site content published to Cloud Firestore!', 'success');
+        }
+      } catch (err) {
+        console.warn('Auto-seed check notice:', err);
+      }
+    };
+
+    bootstrapCloudIfNeeded();
+    return () => {
+      isCancelled = true;
+    };
+  }, [isFirebaseAdmin]);
 
   // Firebase Auth Action Handlers
   const handleFirebaseEmailLogin = async (email: string, password: string) => {
@@ -762,26 +740,34 @@ export default function App() {
   };
 
   // Site Content CMS handlers
-  const handleSaveSiteContent = (newContent: SiteContent) => {
-    setSiteContent(newContent);
-    if (isFirebaseAdmin) {
-      saveSiteContentToCloud(newContent).catch((err) => {
-        console.error('Failed to sync CMS content to Firestore:', err);
-        showToast('Saved locally. Sign in as Cloud Admin to sync CMS to Firestore.', 'info');
-      });
+  const handleSaveSiteContent = async (newContent: SiteContent) => {
+    try {
+      if (isFirebaseAdmin) {
+        await saveSiteContentToCloud(newContent);
+        setSiteContent(newContent);
+        showToast('Website content published live to Cloud Database across all devices!');
+      } else {
+        setSiteContent(newContent);
+        showToast('Saved locally. Sign in as Cloud Admin (Google) to push live to all devices.', 'info');
+      }
+    } catch (err) {
+      console.error('Failed to save CMS content:', err);
+      showToast('Database error: Failed to save website content to Cloud.', 'error');
     }
-    showToast('Page content saved and updated live!');
   };
 
-  const handleResetSiteContent = () => {
-    setSiteContent(INITIAL_SITE_CONTENT);
-    localStorage.removeItem('tttt_site_content');
-    if (isFirebaseAdmin) {
-      saveSiteContentToCloud(INITIAL_SITE_CONTENT).catch((err) =>
-        console.error('Failed to reset CMS content in Firestore:', err)
-      );
+  const handleResetSiteContent = async () => {
+    try {
+      if (isFirebaseAdmin) {
+        await saveSiteContentToCloud(INITIAL_SITE_CONTENT);
+      }
+      setSiteContent(INITIAL_SITE_CONTENT);
+      localStorage.removeItem('tttt_site_content');
+      showToast('All page content restored to factory defaults and synced to Cloud.');
+    } catch (err) {
+      console.error('Failed to reset CMS content:', err);
+      showToast('Database error: Failed to reset content in Cloud.', 'error');
     }
-    showToast('All page content restored to factory defaults.');
   };
 
   // Cart operations
@@ -1038,122 +1024,174 @@ export default function App() {
   );
 
   // News management handlers
-  const handleSaveNews = (newsItem: DailyNewsItem) => {
-    setNews((prev) => {
-      const existingIdx = prev.findIndex((n) => n.id === newsItem.id);
-      if (existingIdx >= 0) {
-        const copy = [...prev];
-        copy[existingIdx] = newsItem;
-        return copy;
+  const handleSaveNews = async (newsItem: DailyNewsItem) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await saveNewsToCloud(newsItem);
       }
-      return [newsItem, ...prev];
-    });
-    if (canWriteCoursesToCloud) {
-      saveNewsToCloud(newsItem).catch((err) =>
-        console.error('Failed to sync news article to Firestore:', err)
+      setNews((prev) => {
+        const existingIdx = prev.findIndex((n) => n.id === newsItem.id);
+        if (existingIdx >= 0) {
+          const copy = [...prev];
+          copy[existingIdx] = newsItem;
+          return copy;
+        }
+        return [newsItem, ...prev];
+      });
+      showToast(
+        canWriteCoursesToCloud
+          ? `News article published live to Cloud Database: "${newsItem.title}"`
+          : `News article saved locally: "${newsItem.title}"`
       );
+    } catch (err) {
+      console.error('Failed to save news article:', err);
+      showToast('Database error: Failed to save news article to Cloud.', 'error');
     }
-    showToast(`News article saved: "${newsItem.title}"`);
   };
 
-  const handleDeleteNews = (newsId: string) => {
-    setNews((prev) => prev.filter((n) => n.id !== newsId));
-    if (canWriteCoursesToCloud) {
-      deleteNewsFromCloud(newsId).catch((err) =>
-        console.error('Failed to delete news article in Firestore:', err)
-      );
+  const handleDeleteNews = async (newsId: string) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await deleteNewsFromCloud(newsId);
+      }
+      setNews((prev) => prev.filter((n) => n.id !== newsId));
+      showToast('News article deleted from Cloud Database.');
+    } catch (err) {
+      console.error('Failed to delete news article:', err);
+      showToast('Database error: Failed to delete news article.', 'error');
     }
-    showToast('News article deleted.');
   };
 
   // Live Doubt Sessions handlers
   const handleSaveLiveSession = async (session: LiveSession) => {
-    setLiveSessions((prev) => {
-      const idx = prev.findIndex((s) => s.id === session.id);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = session;
-        return copy;
+    try {
+      if (canWriteCoursesToCloud) {
+        await saveLiveSessionToCloud(session);
       }
-      return [session, ...prev];
-    });
-    if (canWriteCoursesToCloud) {
-      await saveLiveSessionToCloud(session).catch((err) =>
-        console.error('Failed to save live session to Firestore:', err)
+      setLiveSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === session.id);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = session;
+          return copy;
+        }
+        return [session, ...prev];
+      });
+      showToast(
+        canWriteCoursesToCloud
+          ? `Live class session saved to Cloud Database: "${session.title}"`
+          : `Live class session saved locally: "${session.title}"`
       );
+    } catch (err) {
+      console.error('Failed to save live session:', err);
+      showToast('Database error: Failed to save live class session.', 'error');
     }
-    showToast(`Live session saved: "${session.title}"`);
   };
 
-  const handleDeleteLiveSession = (sessionId: string) => {
-    setLiveSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    if (canWriteCoursesToCloud) {
-      deleteLiveSessionFromCloud(sessionId).catch((err) =>
-        console.error('Failed to delete live session in Firestore:', err)
-      );
+  const handleDeleteLiveSession = async (sessionId: string) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await deleteLiveSessionFromCloud(sessionId);
+      }
+      setLiveSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      showToast('Live session removed from Cloud Database.');
+    } catch (err) {
+      console.error('Failed to delete live session:', err);
+      showToast('Database error: Failed to delete live session.', 'error');
     }
-    showToast('Live session removed.');
   };
 
   // General course creation/editing from modals
-  const handleSaveCourse = (courseData: Course) => {
-    setCourses((prev) => {
-      const existingIdx = prev.findIndex((c) => c.id === courseData.id);
-      if (existingIdx >= 0) {
-        const copy = [...prev];
-        copy[existingIdx] = courseData;
-        return copy;
+  const handleSaveCourse = async (courseData: Course) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await saveCourseToCloud(courseData, firebaseUser?.uid);
       }
-      return [courseData, ...prev];
-    });
-    if (canWriteCoursesToCloud) {
-      saveCourseToCloud(courseData, firebaseUser?.uid).catch((err) =>
-        console.error('Failed to save course to Firestore:', err)
+      setCourses((prev) => {
+        const existingIdx = prev.findIndex((c) => c.id === courseData.id);
+        if (existingIdx >= 0) {
+          const copy = [...prev];
+          copy[existingIdx] = courseData;
+          return copy;
+        }
+        return [courseData, ...prev];
+      });
+      showToast(
+        canWriteCoursesToCloud
+          ? `Course saved and published live to Cloud Database: "${courseData.title}"`
+          : `Course saved locally: "${courseData.title}"`
       );
+    } catch (err) {
+      console.error('Failed to save course to Cloud:', err);
+      showToast('Database error: Failed to save course. Check admin permissions.', 'error');
     }
-    showToast(`Course saved: "${courseData.title}"`);
   };
 
   // Teacher portal operations
-  const handleCreateCourse = (newCourse: Course) => {
-    setCourses((prev) => [newCourse, ...prev]);
-    if (canWriteCoursesToCloud) {
-      saveCourseToCloud(newCourse, firebaseUser?.uid).catch((err) =>
-        console.error('Failed to publish course to Firestore:', err)
+  const handleCreateCourse = async (newCourse: Course) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await saveCourseToCloud(newCourse, firebaseUser?.uid);
+      }
+      setCourses((prev) => [newCourse, ...prev]);
+      showToast(
+        canWriteCoursesToCloud
+          ? `Course published to Cloud Database: "${newCourse.title}"`
+          : `Course saved locally: "${newCourse.title}"`
       );
+    } catch (err) {
+      console.error('Failed to publish course:', err);
+      showToast('Database error: Failed to publish course to Cloud.', 'error');
     }
-    showToast(`Course published: "${newCourse.title}"`);
   };
 
-  const handleUpdateCourse = (updated: Course) => {
-    setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    if (canWriteCoursesToCloud) {
-      saveCourseToCloud(updated, firebaseUser?.uid).catch((err) =>
-        console.error('Failed to update course in Firestore:', err)
+  const handleUpdateCourse = async (updated: Course) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await saveCourseToCloud(updated, firebaseUser?.uid);
+      }
+      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      showToast(
+        canWriteCoursesToCloud
+          ? `Course updated in Cloud Database: "${updated.title}"`
+          : `Course updated locally: "${updated.title}"`
       );
+    } catch (err) {
+      console.error('Failed to update course in Cloud:', err);
+      showToast('Database error: Failed to update course.', 'error');
     }
-    showToast(`Course updated: "${updated.title}"`);
   };
 
-  const handleDeleteCourse = (courseId: string) => {
-    setCourses((prev) => prev.filter((c) => c.id !== courseId));
-    if (canWriteCoursesToCloud) {
-      deleteCourseFromCloud(courseId).catch((err) =>
-        console.error('Failed to delete course from Firestore:', err)
-      );
+  const handleDeleteCourse = async (courseId: string) => {
+    try {
+      if (canWriteCoursesToCloud) {
+        await deleteCourseFromCloud(courseId);
+      }
+      setCourses((prev) => prev.filter((c) => c.id !== courseId));
+      showToast('Course permanently removed from Cloud Database.');
+    } catch (err) {
+      console.error('Failed to delete course in Cloud:', err);
+      showToast('Database error: Failed to delete course.', 'error');
     }
-    showToast('Course removed.');
   };
 
-  const handleToggleApproval = (courseId: string) => {
+  const handleToggleApproval = async (courseId: string) => {
     const target = courses.find((c) => c.id === courseId);
     if (!target) return;
     const toggled: Course = { ...target, isApproved: !target.isApproved };
-    setCourses((prev) => prev.map((c) => (c.id === courseId ? toggled : c)));
-    if (canWriteCoursesToCloud) {
-      saveCourseToCloud(toggled, firebaseUser?.uid).catch((err) =>
-        console.error('Failed to update course approval in Firestore:', err)
+    try {
+      if (canWriteCoursesToCloud) {
+        await saveCourseToCloud(toggled, firebaseUser?.uid);
+      }
+      setCourses((prev) => prev.map((c) => (c.id === courseId ? toggled : c)));
+      showToast(
+        toggled.isApproved
+          ? `Course "${toggled.title}" published publicly to all visitors!`
+          : `Course "${toggled.title}" reverted to draft (hidden from public).`
       );
+    } catch (err) {
+      console.error('Failed to toggle course approval in Cloud:', err);
+      showToast('Database error: Failed to update course approval in Cloud.', 'error');
     }
   };
 
@@ -1165,33 +1203,39 @@ export default function App() {
       showToast(`Query submitted! Reference: ${newQuery.id}`);
     } catch (err) {
       console.error('Cloud query submission warning:', err);
-      showToast(`Saved ticket ${newQuery.id} locally (cloud sync pending).`, 'info');
+      showToast(`Saved ticket ${newQuery.id} locally.`, 'info');
     }
   };
 
-  const handleUpdateQueryStatus = (
+  const handleUpdateQueryStatus = async (
     queryId: string,
     status: 'Received' | 'In Review' | 'Answered'
   ) => {
-    setQueries((prev) =>
-      prev.map((q) => (q.id === queryId ? { ...q, status } : q))
-    );
-    if (isFirebaseAdmin) {
-      updateQueryStatusInCloud(queryId, status).catch((err) =>
-        console.error('Failed to update query status in Firestore:', err)
+    try {
+      if (isFirebaseAdmin) {
+        await updateQueryStatusInCloud(queryId, status);
+      }
+      setQueries((prev) =>
+        prev.map((q) => (q.id === queryId ? { ...q, status } : q))
       );
+      showToast(`Query ${queryId} status updated to ${status}`);
+    } catch (err) {
+      console.error('Failed to update query status:', err);
+      showToast('Database error: Failed to update query status.', 'error');
     }
-    showToast(`Query ${queryId} marked as ${status}`);
   };
 
-  const handleDeleteQuery = (queryId: string) => {
-    setQueries((prev) => prev.filter((q) => q.id !== queryId));
-    if (isFirebaseAdmin) {
-      deleteQueryFromCloud(queryId).catch((err) =>
-        console.error('Failed to delete query in Firestore:', err)
-      );
+  const handleDeleteQuery = async (queryId: string) => {
+    try {
+      if (isFirebaseAdmin) {
+        await deleteQueryFromCloud(queryId);
+      }
+      setQueries((prev) => prev.filter((q) => q.id !== queryId));
+      showToast(`Query ${queryId} removed.`);
+    } catch (err) {
+      console.error('Failed to delete query:', err);
+      showToast('Database error: Failed to delete query.', 'error');
     }
-    showToast(`Query ${queryId} removed.`);
   };
 
   // Teacher Email Verification & Request Handlers
@@ -1278,7 +1322,7 @@ export default function App() {
     };
   };
 
-  const upsertVerifiedTeacherProfile = (profileInput: {
+  const upsertVerifiedTeacherProfile = async (profileInput: {
     email: string;
     name: string;
     qualification: string;
@@ -1332,18 +1376,20 @@ export default function App() {
     });
 
     if (isFirebaseAdmin) {
-      saveVerifiedTeacherToCloud(savedProfile, true).catch((err) =>
-        console.error('Failed to sync teacher profile to Firestore:', err)
-      );
+      try {
+        await saveVerifiedTeacherToCloud(savedProfile, true);
+      } catch (err) {
+        console.error('Failed to sync teacher profile to Firestore:', err);
+      }
     }
   };
 
-  const handleSaveTeacherProfile = (profileData: TeacherProfileFormData) => {
-    upsertVerifiedTeacherProfile(profileData);
+  const handleSaveTeacherProfile = async (profileData: TeacherProfileFormData) => {
+    await upsertVerifiedTeacherProfile(profileData);
     showToast(`Saved verified teacher profile for ${profileData.name}`);
   };
 
-  const handleToggleTeacherProfileVisibility = (email: string) => {
+  const handleToggleTeacherProfileVisibility = async (email: string) => {
     const emailNorm = email.trim().toLowerCase();
     const nowFormatted = new Date().toLocaleString('en-IN', {
       day: '2-digit',
@@ -1366,14 +1412,16 @@ export default function App() {
     );
 
     if (isFirebaseAdmin) {
-      const stillVerified = verifiedTeacherEmails.includes(emailNorm);
-      saveVerifiedTeacherToCloud(updatedProfile, stillVerified).catch((err) =>
-        console.error('Failed to update teacher visibility in Firestore:', err)
-      );
+      try {
+        const stillVerified = verifiedTeacherEmails.includes(emailNorm);
+        await saveVerifiedTeacherToCloud(updatedProfile, stillVerified);
+      } catch (err) {
+        console.error('Failed to update teacher visibility in Firestore:', err);
+      }
     }
   };
 
-  const handleApproveTeacherRequest = (
+  const handleApproveTeacherRequest = async (
     requestId: string,
     profileOverrides?: TeacherProfileFormData
   ) => {
@@ -1407,7 +1455,7 @@ export default function App() {
 
     // Automatically create or update verified teacher profile upon approval
     const qualParts = [target.department, target.college, target.experienceYears].filter(Boolean);
-    upsertVerifiedTeacherProfile({
+    await upsertVerifiedTeacherProfile({
       email: emailNorm,
       name: profileOverrides?.name || target.name || 'Verified Faculty',
       qualification:
@@ -1424,11 +1472,15 @@ export default function App() {
     });
 
     if (isFirebaseAdmin) {
-      updateTeacherAccessRequestInCloud(requestId, {
-        status: 'APPROVED',
-        approvedAt: nowFormatted,
-        approvedBy: adminApprover
-      }).catch((err) => console.error('Failed to update teacher request in Firestore:', err));
+      try {
+        await updateTeacherAccessRequestInCloud(requestId, {
+          status: 'APPROVED',
+          approvedAt: nowFormatted,
+          approvedBy: adminApprover
+        });
+      } catch (err) {
+        console.error('Failed to update teacher request in Firestore:', err);
+      }
     }
 
     if (currentUser && currentUser.email.trim().toLowerCase() === emailNorm && currentUser.role !== 'admin') {
@@ -1442,7 +1494,7 @@ export default function App() {
     showToast(`${emailNorm} approved & verified teacher profile created!`);
   };
 
-  const handleRejectTeacherRequest = (requestId: string) => {
+  const handleRejectTeacherRequest = async (requestId: string) => {
     const target = teacherRequests.find((r) => r.id === requestId);
     if (!target) return;
     const emailNorm = target.email.trim().toLowerCase();
@@ -1453,14 +1505,14 @@ export default function App() {
     setVerifiedTeacherEmails((prev) => prev.filter((e) => e !== emailNorm));
 
     if (isFirebaseAdmin) {
-      updateTeacherAccessRequestInCloud(requestId, { status: 'REJECTED' }).catch((err) =>
-        console.error('Failed to reject request in Firestore:', err)
-      );
-      const profile = teacherProfiles.find((p) => p.email.trim().toLowerCase() === emailNorm);
-      if (profile) {
-        saveVerifiedTeacherToCloud({ ...profile, isVisible: false }, false).catch((err) =>
-          console.error('Failed to revoke teacher in Firestore:', err)
-        );
+      try {
+        await updateTeacherAccessRequestInCloud(requestId, { status: 'REJECTED' });
+        const profile = teacherProfiles.find((p) => p.email.trim().toLowerCase() === emailNorm);
+        if (profile) {
+          await saveVerifiedTeacherToCloud({ ...profile, isVisible: false }, false);
+        }
+      } catch (err) {
+        console.error('Failed to reject request in Firestore:', err);
       }
     }
 
@@ -1470,7 +1522,7 @@ export default function App() {
     showToast(`Request for ${emailNorm} rejected. Profile hidden from public directory.`);
   };
 
-  const handleRevokeTeacherEmail = (email: string) => {
+  const handleRevokeTeacherEmail = async (email: string) => {
     const emailNorm = email.trim().toLowerCase();
     setVerifiedTeacherEmails((prev) => prev.filter((e) => e !== emailNorm));
     setTeacherRequests((prev) =>
@@ -1482,19 +1534,19 @@ export default function App() {
     );
 
     if (isFirebaseAdmin) {
-      const profile = teacherProfiles.find((p) => p.email.trim().toLowerCase() === emailNorm);
-      if (profile) {
-        saveVerifiedTeacherToCloud({ ...profile, isVisible: false }, false).catch((err) =>
-          console.error('Failed to revoke teacher profile in Firestore:', err)
+      try {
+        const profile = teacherProfiles.find((p) => p.email.trim().toLowerCase() === emailNorm);
+        if (profile) {
+          await saveVerifiedTeacherToCloud({ ...profile, isVisible: false }, false);
+        }
+        await Promise.all(
+          teacherRequests
+            .filter((r) => r.email.trim().toLowerCase() === emailNorm && r.status === 'APPROVED')
+            .map((r) => updateTeacherAccessRequestInCloud(r.id, { status: 'REJECTED' }))
         );
+      } catch (err) {
+        console.error('Failed to revoke teacher profile in Firestore:', err);
       }
-      teacherRequests
-        .filter((r) => r.email.trim().toLowerCase() === emailNorm && r.status === 'APPROVED')
-        .forEach((r) => {
-          updateTeacherAccessRequestInCloud(r.id, { status: 'REJECTED' }).catch((err) =>
-            console.error('Failed to reject teacher request on revoke:', err)
-          );
-        });
     }
 
     if (currentUser && currentUser.email.trim().toLowerCase() === emailNorm && currentUser.role === 'teacher') {

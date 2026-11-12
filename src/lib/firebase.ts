@@ -5,14 +5,49 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: Pass firebaseConfig.firestoreDatabaseId so Enterprise/named Firestore databases connect properly
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
-export const BOOTSTRAPPED_ADMIN_EMAIL = 'nrddhtrivedi@gmail.com';
+
+export const AUTHORIZED_ADMIN_EMAILS: readonly string[] = [
+  'trivedianiruddh667@gmail.com',
+  'nrddhtrivedi@gmail.com'
+];
+
+export const BOOTSTRAPPED_ADMIN_EMAIL = 'trivedianiruddh667@gmail.com';
+
+export function isAuthorizedAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return AUTHORIZED_ADMIN_EMAILS.some((adm) => adm.toLowerCase() === normalized);
+}
+
+export async function uploadMediaToCloud(
+  file: File,
+  folder: 'courses' | 'news' | 'teachers' | 'cms' = 'courses'
+): Promise<string> {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${folder}/${Date.now()}_${safeName}`;
+  try {
+    const storageRef = ref(storage, path);
+    const snapshot = await uploadBytes(storageRef, file);
+    return await getDownloadURL(snapshot.ref);
+  } catch (err) {
+    console.warn('Direct Firebase Storage upload encountered error, using inline secure media encoding:', err);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+    });
+  }
+}
 
 // Boot-time Firestore connectivity validation
 export async function testFirestoreConnection(): Promise<void> {

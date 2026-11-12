@@ -220,6 +220,10 @@
         "isNew": {
           "type": "boolean"
         },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "published", "archived"]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -267,6 +271,14 @@
           "type": "string",
           "maxLength": 400000
         },
+        "designation": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "published", "archived"]
+        },
         "isVisible": {
           "type": "boolean"
         },
@@ -283,6 +295,38 @@
         }
       },
       "required": ["id", "email", "name", "qualification", "intro", "isVisible", "isVerified", "updatedAt"]
+    },
+    "QuickLearningRecord": {
+      "title": "QuickLearningRecord",
+      "description": "Fast-track exam sprint topic, description, video, and downloadable study pack.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "topic": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "subject": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "category": {
+          "type": "string",
+          "enum": ["Crash Course", "Exam Booster", "Handwritten Notes", "Fast-Track Sprint", "Cheat Sheet"]
+        },
+        "description": { "type": "string", "minLength": 2, "maxLength": 3000 },
+        "duration": { "type": "string", "maxLength": 48 },
+        "imageUrl": { "type": "string", "maxLength": 500000 },
+        "videoUrl": { "type": "string", "maxLength": 500 },
+        "learningMaterialsUrl": { "type": "string", "maxLength": 500 },
+        "materialsFileName": { "type": "string", "maxLength": 160 },
+        "keyPoints": { "type": "array" },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"] },
+        "viewsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "topic", "subject", "category", "description", "duration", "status", "keyPoints", "createdAt", "updatedAt"]
     },
     "TeacherAccessRequestRecord": {
       "title": "TeacherAccessRequestRecord",
@@ -524,6 +568,10 @@
     "/siteContent/{docId}": {
       "schema": { "$ref": "#/entities/SiteContentRecord" },
       "description": "Site-wide CMS configuration owned by Admin."
+    },
+    "/quickLearning/{itemId}": {
+      "schema": { "$ref": "#/entities/QuickLearningRecord" },
+      "description": "Quick Learning fast-track topics, videos, and cheat sheets."
     },
     "/admins/{userId}": {
       "schema": { "$ref": "#/entities/AdminRecord" },

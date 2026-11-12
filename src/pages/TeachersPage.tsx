@@ -569,7 +569,7 @@ export const TeachersPage: React.FC<TeachersPageProps> = ({
               <span>ADMIN-VERIFIED EDUCATOR ROSTER</span>
             </div>
             <h1 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black tracking-tight uppercase [text-wrap:balance]">
-              Verified Teachers
+              Trending Teachers
             </h1>
             <p className="text-zinc-400 text-sm sm:text-base mt-4 leading-relaxed">
               Every educator listed here holds an academic email verified by the Trust Directorate. Click any teacher&apos;s profile to explore all courses and notes they have uploaded.

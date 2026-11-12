@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // 1. Zero-Trust Global Safety Net (Default-Deny Catch-All)
+    // -------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. Reusable Hardened Security Primitives
+    // -------------------------------------------------------------------------
+
+    /// Validates standard alphanumeric / hyphen / underscore document IDs up to 128 chars
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    /// Convenience accessors for payload inspection
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    /// Checks if a valid, authenticated session exists
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    /// Verifies that the authenticated user possesses a verified email address
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    /// Validates ownership against the incoming or targeted user ID
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /// Validates trusted administrative roles using secure server-side claims or admin registry
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    /// Validates institutional faculty role from custom claims injected by Identity Platform
+    function isFaculty() {
+      return isSignedIn() && (
+        request.auth.token.role == 'faculty' ||
+        isAdmin()
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. User Profiles & Private Data Isolation (/users/{userId})
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      // Single-document read: Only the account owner or verified admin may read private profile info
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      // Query listings are strictly restricted to system administrators to prevent identity scraping
+      allow list: if isAdmin();
+
+      // Account Creation: Must bind to request.auth.uid with server-timestamped audit fields
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        incoming().uid == userId &&
+        incoming().email == request.auth.token.email &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        // Prevent client-side self-privilege escalation
+        (!('role' in incoming()) || incoming().role == 'student' || isAdmin());
+
+      // Account Update: Owner may modify specific editable profile fields; role remains protected
+      allow update: if isValidId(userId) &&
+        isOwner(userId) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name',
+          'displayName',
+          'bio',
+          'college',
+          'department',
+          'photoUrl',
+          'updatedAt'
+        ]);
+
+      // Account Deletion: Owner or Admin only
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      // -----------------------------------------------------------------------
+      // Subcollection: Private Academic Enrollments (/users/{userId}/enrollments/{courseId})
+      // -----------------------------------------------------------------------
+      match /enrollments/{courseId} {
+        allow get, list: if isValidId(courseId) && (isOwner(userId) || isAdmin());
+        allow create, update: if isValidId(courseId) && isOwner(userId);
+        allow delete: if isValidId(courseId) && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. Public Catalog & Content Read with Role-Restricted Writes (/courses/{courseId})
+    // -------------------------------------------------------------------------
+    match /courses/{courseId} {
+      // Anyone can read approved courses; unapproved courses visible to authors and admins
+      allow get: if isValidId(courseId) && (
+        existing().isApproved == true ||
+        (isSignedIn() && existing().authorUid == request.auth.uid) ||
+        isAdmin()
+      );
+
+      // Client list queries MUST evaluate resource.data constraints
+      allow list: if existing().isApproved == true ||
+        (isSignedIn() && existing().authorUid == request.auth.uid) ||
+        isAdmin();
+
+      // Authorship writes restricted to verified Faculty or Admins
+      allow create: if isValidId(courseId) &&
+        isFaculty() &&
+        incoming().id == courseId &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(courseId) &&
+        (isOwner(existing().authorUid) || isAdmin()) &&
+        incoming().id == existing().id &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(courseId) && (isOwner(existing().authorUid) || isAdmin());
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. System Administration Collection (/admins/{userId})
+    // -------------------------------------------------------------------------
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list, create, update, delete: if isValidId(userId) && isAdmin();
+    }
+  }
+}

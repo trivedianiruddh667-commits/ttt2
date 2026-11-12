@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Course, VerifiedTeacherProfile } from '../data/db';
-import { X, BookOpen, Plus, Trash2, Upload, FileText } from 'lucide-react';
+import { Course, VerifiedTeacherProfile, ContentStatus } from '../data/db';
+import { X, BookOpen, Plus, Trash2, Upload, FileText, Loader2, Eye, EyeOff } from 'lucide-react';
+import { uploadMediaToCloud } from '../lib/firebase';
 
 interface CourseFormModalProps {
   isOpen: boolean;
@@ -32,12 +33,15 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
   const [description, setDescription] = useState('');
   const [learningOutcomes, setLearningOutcomes] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [pdfNotesUrl, setPdfNotesUrl] = useState('');
   const [notesContent, setNotesContent] = useState('');
+  const [isUploadingNotes, setIsUploadingNotes] = useState(false);
   const [syllabusModules, setSyllabusModules] = useState<
     { title: string; duration: string; topicsText: string }[]
   >([]);
   const [isNew, setIsNew] = useState(true);
   const [isTrending, setIsTrending] = useState(false);
+  const [status, setStatus] = useState<ContentStatus>('draft');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -58,6 +62,7 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
       setDescription(initialCourse.description);
       setLearningOutcomes(initialCourse.learningOutcomes.join('\n'));
       setUploadedFileName(initialCourse.uploadedFileName || '');
+      setPdfNotesUrl(initialCourse.pdfNotesUrl || '');
       setNotesContent(initialCourse.notesContent || '');
       setSyllabusModules(
         (initialCourse.syllabus || []).map((m) => ({
@@ -68,6 +73,7 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
       );
       setIsNew(initialCourse.isNew ?? false);
       setIsTrending(!!initialCourse.isTrending);
+      setStatus(initialCourse.status || (initialCourse.isApproved ? 'published' : 'draft'));
     } else {
       setTitle('');
       setCode('CS-');
@@ -86,6 +92,7 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
         'Master university derivation proofs & recurrence relations\nSolve previous 10 years end-term exam question patterns\nHandwritten high-yield diagrams for all algorithms'
       );
       setUploadedFileName('');
+      setPdfNotesUrl('');
       setNotesContent('');
       setSyllabusModules([
         {
@@ -106,6 +113,7 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
       ]);
       setIsNew(true);
       setIsTrending(false);
+      setStatus('draft');
     }
   }, [initialCourse, isOpen]);
 
@@ -124,6 +132,18 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadedFileName(file.name.slice(0, 160));
+    setIsUploadingNotes(true);
+    try {
+      const cloudUrl = await uploadMediaToCloud(file, 'courses');
+      if (cloudUrl && cloudUrl.startsWith('http')) {
+        setPdfNotesUrl(cloudUrl.slice(0, 500));
+      }
+    } catch (uploadErr) {
+      console.warn('Storage upload fallback:', uploadErr);
+    } finally {
+      setIsUploadingNotes(false);
+    }
+
     if (
       file.type.startsWith('text/') ||
       /\.(txt|md|csv)$/i.test(file.name)
@@ -190,11 +210,13 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
       rating: initialCourse ? initialCourse.rating : 5.0,
       reviewsCount: initialCourse ? initialCourse.reviewsCount : 0,
       enrolledCount: initialCourse ? initialCourse.enrolledCount : 1,
-      isApproved: true,
+      isApproved: status === 'published',
+      status,
       isNew,
       createdAt: initialCourse?.createdAt || new Date().toISOString().split('T')[0],
       isTrending,
       uploadedFileName: uploadedFileName.trim() || undefined,
+      pdfNotesUrl: pdfNotesUrl.trim() || undefined,
       notesContent: notesContent.trim() || undefined,
       syllabus: finalSyllabus
     };
@@ -603,11 +625,22 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
               />
               <button
                 type="button"
+                disabled={isUploadingNotes}
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 border border-white bg-white text-black font-black text-[11px] uppercase hover:bg-zinc-200 flex items-center gap-1.5"
+                className="px-3 py-1.5 border border-white bg-white text-black font-black text-[11px] uppercase hover:bg-zinc-200 flex items-center gap-1.5 disabled:opacity-50"
               >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{uploadedFileName ? `Attached: ${uploadedFileName}` : 'Upload Notes File'}</span>
+                {isUploadingNotes ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {isUploadingNotes
+                    ? 'Uploading to Cloud...'
+                    : uploadedFileName
+                    ? `Attached: ${uploadedFileName}`
+                    : 'Upload Notes File'}
+                </span>
               </button>
             </div>
             <textarea
@@ -617,6 +650,61 @@ export const CourseFormModal: React.FC<CourseFormModalProps> = ({
               placeholder="Paste formula summaries or upload a .txt/.md study manuscript — included in student Study Pack downloads..."
               className="w-full bg-black border border-zinc-700 px-3 py-2 text-xs text-zinc-200 font-mono-numbers focus:outline-none focus:border-white"
             />
+          </div>
+
+          {/* Publishing Status Selector */}
+          <div className="p-4 bg-zinc-950 border-2 border-zinc-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-heading font-black uppercase text-white flex items-center gap-2">
+                  {status === 'published' ? (
+                    <Eye className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <EyeOff className="w-4 h-4 text-zinc-400" />
+                  )}
+                  <span>Course Publishing Status</span>
+                </span>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Only <strong>Published</strong> courses are visible to students and public visitors. Draft & Archived courses stay strictly within Admin.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setStatus('draft')}
+                className={`py-2 px-3 border-2 text-xs font-mono-numbers font-black uppercase transition-colors ${
+                  status === 'draft'
+                    ? 'border-amber-400 bg-amber-400 text-black'
+                    : 'border-zinc-700 bg-black text-zinc-400 hover:border-white hover:text-white'
+                }`}
+              >
+                Draft (Private)
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatus('published')}
+                className={`py-2 px-3 border-2 text-xs font-mono-numbers font-black uppercase transition-colors ${
+                  status === 'published'
+                    ? 'border-emerald-400 bg-emerald-500 text-black'
+                    : 'border-zinc-700 bg-black text-zinc-400 hover:border-white hover:text-white'
+                }`}
+              >
+                Published (Live)
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatus('archived')}
+                className={`py-2 px-3 border-2 text-xs font-mono-numbers font-black uppercase transition-colors ${
+                  status === 'archived'
+                    ? 'border-zinc-400 bg-zinc-700 text-white'
+                    : 'border-zinc-700 bg-black text-zinc-400 hover:border-white hover:text-white'
+                }`}
+              >
+                Archived
+              </button>
+            </div>
           </div>
 
           {/* Action buttons */}

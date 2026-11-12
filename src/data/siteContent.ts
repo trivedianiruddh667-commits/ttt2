@@ -223,7 +223,7 @@ export const AVAILABLE_GALLERY_IMAGES = [
   {
     id: 'aryan_photo',
     name: 'Aryan Yadav (Researcher and Content Organiser)',
-    url: '/assets/aistudio/Aryan_photo_2feeb48f.png'
+    url: '/assets/aistudio/WhatsApp_Image_2026-11-12_at_13.57.50_756694f5.jpeg'
   }
 ];
 
@@ -361,7 +361,7 @@ export const INITIAL_SITE_CONTENT: SiteContent = {
   team: {
     header: {
       badge: 'FACULTY & ARCHITECTS',
-      title: 'Trending Teachers',
+      title: 'Our Tribe',
       description:
         "The educators behind Techie Teacher's Tribe Trust aren't corporate pitchmen. We are battle-hardened professors, former exam toppers, and system engineers who know what examiners evaluate."
     },
@@ -445,7 +445,7 @@ export const INITIAL_SITE_CONTENT: SiteContent = {
         experience: 'Content & Research Lead',
         rating: 4.97,
         impactMetric: 'CURRICULUM RESEARCH LEAD',
-        imageUrl: '/assets/aistudio/Aryan_photo_2feeb48f.png'
+        imageUrl: '/assets/aistudio/WhatsApp_Image_2026-11-12_at_13.57.50_756694f5.jpeg'
       }
     ],
     marqueeItems: [

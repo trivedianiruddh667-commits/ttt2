@@ -19,7 +19,7 @@ interface TeamPageProps {
 const DEFAULT_TEAM: SiteContent['team'] = {
   header: {
     badge: 'FACULTY & ARCHITECTS',
-    title: 'Trending Teachers',
+    title: 'Our Tribe',
     description:
       "The educators behind Techie Teacher's Tribe Trust aren't corporate pitchmen. We are battle-hardened professors, former exam toppers, and system engineers who know what examiners evaluate."
   },
@@ -65,7 +65,7 @@ const DEFAULT_TEAM: SiteContent['team'] = {
       experience: 'Content & Research Lead',
       rating: 4.97,
       impactMetric: 'CURRICULUM RESEARCH LEAD',
-      imageUrl: '/assets/aistudio/Aryan_photo_2feeb48f.png'
+      imageUrl: '/assets/aistudio/WhatsApp_Image_2026-11-12_at_13.57.50_756694f5.jpeg'
     }
   ],
   marqueeItems: [
@@ -102,14 +102,14 @@ export const TeamPage: React.FC<TeamPageProps> = ({
 
   return (
     <div className="w-full bg-black text-white select-none">
-      {/* Header section with heading "Trending Teachers" */}
+      {/* Header section with heading "Our Tribe" */}
       <section className="border-b-2 border-white py-16 px-4 sm:px-6 lg:px-8 bg-zinc-950">
         <div className="max-w-7xl mx-auto">
           <span className="text-xs uppercase tracking-[0.3em] text-zinc-400 font-mono-numbers">
             {content.header.badge}
           </span>
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black tracking-tight uppercase mt-2">
-            {content.header.title === 'Our Tribe' ? 'Trending Teachers' : (content.header.title || 'Trending Teachers')}
+            {content.header.title || 'Our Tribe'}
           </h1>
           <p className="text-zinc-400 text-sm sm:text-base mt-4 max-w-2xl leading-relaxed">
             {content.header.description}
@@ -307,6 +307,11 @@ export const TeamPage: React.FC<TeamPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl">
           {technicalMembers.map((member, idx) => {
             const stats = getTeacherRating(member.name, queries, ratingOverrides, member.rating);
+            const resolvedImg =
+              member.name === 'Aryan Yadav' &&
+              (!member.imageUrl || member.imageUrl === '/assets/aistudio/Aryan_photo_2feeb48f.png')
+                ? '/assets/aistudio/WhatsApp_Image_2026-11-12_at_13.57.50_756694f5.jpeg'
+                : member.imageUrl;
             return (
               <div
                 key={idx}
@@ -315,9 +320,9 @@ export const TeamPage: React.FC<TeamPageProps> = ({
                 <div>
                   {/* High-contrast portrait frame showing subject and crossed arms */}
                   <div className="relative h-96 sm:h-[440px] bg-zinc-950 border-b-2 border-white overflow-hidden flex items-center justify-center">
-                    {member.imageUrl ? (
+                    {resolvedImg ? (
                       <img
-                        src={member.imageUrl}
+                        src={resolvedImg}
                         alt={member.name}
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover object-[center_15%] filter grayscale contrast-125 hover:contrast-150 hover:scale-105 transition-all duration-300"

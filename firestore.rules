@@ -32,10 +32,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isKnownAdmin() {
+      return isSignedIn() && isEmailVerified() && (
+        request.auth.token.email.lower() == 'trivedianiruddh667@gmail.com' ||
+        request.auth.token.email.lower() == 'nrddhtrivedi@gmail.com'
+      );
+    }
+
     function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (isEmailVerified() && request.auth.token.email == 'nrddhtrivedi@gmail.com')
+      return isKnownAdmin() || (
+        isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
 
@@ -145,23 +151,29 @@ service cloud.firestore {
           'id',
           'email',
           'name',
+          'designation',
           'qualification',
           'intro',
           'photoUrl',
+          'status',
           'isVisible',
           'isVerified',
           'approvedAt',
+          'createdAt',
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
         data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        (!('designation' in data) || (data.designation is string && data.designation.size() <= 160)) &&
         data.qualification is string && data.qualification.size() >= 1 && data.qualification.size() <= 240 &&
         data.intro is string && data.intro.size() >= 1 && data.intro.size() <= 1500 &&
         data.photoUrl is string && data.photoUrl.size() <= 400000 &&
+        (!('status' in data) || data.status in ['draft', 'published', 'archived']) &&
         data.isVisible is bool &&
         data.isVerified is bool &&
         (!('approvedAt' in data) || (data.approvedAt is string && data.approvedAt.size() <= 64)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
         data.updatedAt is timestamp;
     }
 
@@ -262,6 +274,7 @@ service cloud.firestore {
           'isTrending',
           'trendingRank',
           'fastTrackMinutes',
+          'status',
           'isApproved',
           'syllabus',
           'pdfNotesUrl',
@@ -294,12 +307,63 @@ service cloud.firestore {
         (!('isTrending' in data) || data.isTrending is bool) &&
         (!('trendingRank' in data) || data.trendingRank is number) &&
         (!('fastTrackMinutes' in data) || data.fastTrackMinutes is number) &&
+        (!('status' in data) || data.status in ['draft', 'published', 'archived']) &&
         data.isApproved is bool &&
         data.syllabus is list && data.syllabus.size() <= 30 && (data.syllabus.size() == 0 || data.syllabus[0] is map) &&
         (!('pdfNotesUrl' in data) || (data.pdfNotesUrl is string && data.pdfNotesUrl.size() <= 500)) &&
         (!('uploadedFileName' in data) || (data.uploadedFileName is string && data.uploadedFileName.size() <= 160)) &&
         (!('notesContent' in data) || (data.notesContent is string && data.notesContent.size() <= 20000)) &&
         (!('isNew' in data) || data.isNew is bool) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidQuickLearningRecord(data) {
+      return data.keys().hasAll([
+          'id',
+          'title',
+          'topic',
+          'subject',
+          'category',
+          'description',
+          'duration',
+          'status',
+          'keyPoints',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'title',
+          'topic',
+          'subject',
+          'category',
+          'description',
+          'duration',
+          'imageUrl',
+          'videoUrl',
+          'learningMaterialsUrl',
+          'materialsFileName',
+          'keyPoints',
+          'status',
+          'viewsCount',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.title is string && data.title.size() >= 2 && data.title.size() <= 200 &&
+        data.topic is string && data.topic.size() >= 2 && data.topic.size() <= 200 &&
+        data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 120 &&
+        data.category in ['Crash Course', 'Exam Booster', 'Handwritten Notes', 'Fast-Track Sprint', 'Cheat Sheet'] &&
+        data.description is string && data.description.size() >= 2 && data.description.size() <= 3000 &&
+        data.duration is string && data.duration.size() <= 48 &&
+        data.status in ['draft', 'published', 'archived'] &&
+        data.keyPoints is list && data.keyPoints.size() <= 20 &&
+        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 500000)) &&
+        (!('videoUrl' in data) || (data.videoUrl is string && data.videoUrl.size() <= 500)) &&
+        (!('learningMaterialsUrl' in data) || (data.learningMaterialsUrl is string && data.learningMaterialsUrl.size() <= 500)) &&
+        (!('materialsFileName' in data) || (data.materialsFileName is string && data.materialsFileName.size() <= 160)) &&
+        (!('viewsCount' in data) || (data.viewsCount is number && data.viewsCount >= 0)) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -550,11 +614,11 @@ service cloud.firestore {
     // Admin-verified teacher profiles & whitelist
     match /verifiedTeachers/{teacherId} {
       allow get: if isValidId(teacherId) && (
-        (existing().isVerified == true && existing().isVisible == true) ||
+        (existing().isVerified == true && existing().isVisible == true && (!('status' in existing()) || existing().status == 'published')) ||
         isAdmin() ||
-        (isEmailVerified() && existing().email == request.auth.token.email.lower())
+        (isSignedIn() && isEmailVerified() && existing().email == request.auth.token.email.lower())
       );
-      allow list: if (existing().isVerified == true && existing().isVisible == true) || isAdmin();
+      allow list: if (existing().isVerified == true && existing().isVisible == true && (!('status' in existing()) || existing().status == 'published')) || isKnownAdmin();
       allow create: if isValidId(teacherId) &&
         isAdmin() &&
         isValidVerifiedTeacherProfile(incoming()) &&
@@ -568,12 +632,15 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly([
           'email',
           'name',
+          'designation',
           'qualification',
           'intro',
           'photoUrl',
+          'status',
           'isVisible',
           'isVerified',
           'approvedAt',
+          'createdAt',
           'updatedAt'
         ]);
       allow delete: if isValidId(teacherId) && isAdmin();
@@ -612,13 +679,13 @@ service cloud.firestore {
     // Courses & topper notes
     match /courses/{courseId} {
       allow get: if isValidId(courseId) && (
-        existing().isApproved == true ||
+        (existing().isApproved == true && (!('status' in existing()) || existing().status == 'published')) ||
         isAdmin() ||
-        (isVerifiedTeacher() && existing().teacherUid == request.auth.uid)
+        (isSignedIn() && isVerifiedTeacher() && existing().teacherUid == request.auth.uid)
       );
-      allow list: if existing().isApproved == true ||
-        isAdmin() ||
-        (isVerifiedTeacher() && existing().teacherUid == request.auth.uid);
+      allow list: if (existing().isApproved == true && (!('status' in existing()) || existing().status == 'published')) ||
+        isKnownAdmin() ||
+        (isSignedIn() && existing().teacherUid == request.auth.uid);
       allow create: if isValidId(courseId) &&
         (isAdmin() || isVerifiedTeacher()) &&
         isValidCourseRecord(incoming()) &&
@@ -655,6 +722,7 @@ service cloud.firestore {
             'isTrending',
             'trendingRank',
             'fastTrackMinutes',
+            'status',
             'isApproved',
             'syllabus',
             'pdfNotesUrl',
@@ -680,6 +748,7 @@ service cloud.firestore {
             'description',
             'learningOutcomes',
             'isTrending',
+            'status',
             'isApproved',
             'syllabus',
             'pdfNotesUrl',
@@ -805,9 +874,9 @@ service cloud.firestore {
       allow get: if isValidId(sessionId) && (
         existing().isPublished == true ||
         isAdmin() ||
-        isVerifiedTeacher()
+        (isSignedIn() && isVerifiedTeacher())
       );
-      allow list: if existing().isPublished == true || isAdmin();
+      allow list: if existing().isPublished == true || isKnownAdmin();
       allow create: if isValidId(sessionId) &&
         (isAdmin() || isVerifiedTeacher()) &&
         isValidLiveSessionRecord(incoming()) &&
@@ -841,7 +910,7 @@ service cloud.firestore {
     // Site-wide CMS configuration
     match /siteContent/{docId} {
       allow get: if isValidId(docId);
-      allow list: if isAdmin();
+      allow list: if isKnownAdmin();
       allow create: if isValidId(docId) &&
         isAdmin() &&
         isValidSiteContentRecord(incoming()) &&
@@ -854,6 +923,44 @@ service cloud.firestore {
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly(['data', 'updatedAt']);
       allow delete: if isValidId(docId) && isAdmin();
+    }
+
+    // Quick Learning fast-track sprint modules & cheat sheets
+    match /quickLearning/{itemId} {
+      allow get: if isValidId(itemId) && (
+        existing().status == 'published' ||
+        isAdmin()
+      );
+      allow list: if existing().status == 'published' || isKnownAdmin();
+      allow create: if isValidId(itemId) &&
+        isAdmin() &&
+        isValidQuickLearningRecord(incoming()) &&
+        incoming().id == itemId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(itemId) &&
+        isAdmin() &&
+        isValidQuickLearningRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'title',
+          'topic',
+          'subject',
+          'category',
+          'description',
+          'duration',
+          'imageUrl',
+          'videoUrl',
+          'learningMaterialsUrl',
+          'materialsFileName',
+          'keyPoints',
+          'status',
+          'viewsCount',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(itemId) && isAdmin();
     }
 
     // Admin UID registry

@@ -7,7 +7,9 @@ import {
   QuerySubmission,
   TeacherAccessRequest,
   VerifiedTeacherProfile,
-  LiveSession
+  LiveSession,
+  QuickLearningItem,
+  ContentStatus
 } from '../data/db';
 import { SiteContent } from '../data/siteContent';
 import { AdminCMSManager } from '../components/AdminCMSManager';
@@ -18,6 +20,12 @@ import {
 } from '../components/TeacherProfileModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { LiveSessionFormModal } from '../components/LiveSessionFormModal';
+import { QuickLearningFormModal } from '../components/QuickLearningFormModal';
+import { CoursePreviewModal } from '../components/CoursePreviewModal';
+import { AdminCoursesManager } from '../components/admin/AdminCoursesManager';
+import { AdminQuickLearningManager } from '../components/admin/AdminQuickLearningManager';
+import { AdminUnifiedStatusView } from '../components/admin/AdminUnifiedStatusView';
+import { AdminMediaLibrary } from '../components/admin/AdminMediaLibrary';
 import {
   Plus,
   Trash2,
@@ -130,6 +138,17 @@ interface AdminPanelPageProps {
   queries: QuerySubmission[];
   onUpdateQueryStatus: (queryId: string, status: 'Received' | 'In Review' | 'Answered') => void;
   onDeleteQuery: (queryId: string) => void;
+  // Quick Learning CMS
+  quickLearningItems?: QuickLearningItem[];
+  onSaveQuickLearning?: (item: QuickLearningItem) => Promise<void> | void;
+  onDeleteQuickLearning?: (itemId: string) => Promise<void> | void;
+  // Duplication & Status Management
+  onDuplicateCourse?: (course: Course) => void;
+  onDuplicateQuickLearning?: (item: QuickLearningItem) => void;
+  onDuplicateTeacherProfile?: (profile: VerifiedTeacherProfile) => void;
+  onUpdateCourseStatus?: (courseId: string, status: ContentStatus) => void;
+  onUpdateQuickLearningStatus?: (itemId: string, status: ContentStatus) => void;
+  onUpdateTeacherProfileStatus?: (email: string, status: ContentStatus) => void;
   onNotify?: (msg: string, variant?: 'success' | 'error' | 'info') => void;
 }
 
@@ -170,6 +189,15 @@ export const AdminPanelPage: React.FC<AdminPanelPageProps> = ({
   queries,
   onUpdateQueryStatus,
   onDeleteQuery,
+  quickLearningItems = [],
+  onSaveQuickLearning,
+  onDeleteQuickLearning,
+  onDuplicateCourse,
+  onDuplicateQuickLearning,
+  onDuplicateTeacherProfile,
+  onUpdateCourseStatus,
+  onUpdateQuickLearningStatus,
+  onUpdateTeacherProfileStatus,
   onNotify
 }) => {
   const ADMIN_PASSKEY = 'ajaywedsaditi$#&1234';
@@ -177,10 +205,35 @@ export const AdminPanelPage: React.FC<AdminPanelPageProps> = ({
   const [showPasskey, setShowPasskey] = useState(false);
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
 
-  // Active tab: teacher-requests first so admin sees pending verifications right away
+  // Active tab: organized into Courses, Quick Learning, Teachers, Drafts, Published, Archived, Media Library
   const [activeTab, setActiveTab] = useState<
-    'teacher-requests' | 'teacher-profiles' | 'queries' | 'ratings' | 'cms' | 'courses' | 'news' | 'live-sessions'
-  >('teacher-requests');
+    | 'courses'
+    | 'quick-learning'
+    | 'teachers'
+    | 'drafts'
+    | 'published'
+    | 'archived'
+    | 'media-library'
+    | 'teacher-requests'
+    | 'teacher-profiles'
+    | 'queries'
+    | 'ratings'
+    | 'cms'
+    | 'live-sessions'
+    | 'news'
+  >('courses');
+
+  // Preview Course Modal State
+  const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
+
+  // Quick Learning Form Modal State
+  const [qlModalState, setQlModalState] = useState<{
+    isOpen: boolean;
+    item: QuickLearningItem | null;
+  }>({
+    isOpen: false,
+    item: null
+  });
 
   // Rating Control State
   const [ratingSubTab, setRatingSubTab] = useState<'teachers' | 'courses' | 'quickLearning'>('teachers');
@@ -293,6 +346,44 @@ export const AdminPanelPage: React.FC<AdminPanelPageProps> = ({
               <span>{passkeyError}</span>
             </div>
           )}
+
+          {/* Direct Google Directorate Sign-In */}
+          <div className="mb-6">
+            <button
+              type="button"
+              disabled={isCloudConnecting}
+              onClick={async () => {
+                setIsCloudConnecting(true);
+                try {
+                  await onFirebaseGoogleSignIn();
+                  showNotice('Google account authenticated. Unlocking Cloud Admin...');
+                } catch (err) {
+                  showNotice(formatFirebaseAuthError(err).message, 'error');
+                } finally {
+                  setIsCloudConnecting(false);
+                }
+              }}
+              className="w-full py-3.5 bg-white text-black font-black uppercase tracking-wider text-xs sm:text-sm hover:bg-zinc-200 transition-colors border-2 border-white shadow-[4px_4px_0px_0px_#ffffff] flex items-center justify-center gap-2.5 disabled:opacity-50"
+            >
+              {isCloudConnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Cloud className="w-4 h-4 text-emerald-600" />
+              )}
+              <span>Sign In with Google (Trust Directorate)</span>
+            </button>
+            <p className="text-[10px] text-zinc-400 font-mono-numbers text-center mt-2">
+              Instant Cloud authentication for authorized admins (trivedianiruddh667@gmail.com / nrddhtrivedi@gmail.com)
+            </p>
+          </div>
+
+          <div className="relative flex py-2 items-center mb-6">
+            <div className="flex-grow border-t border-zinc-800"></div>
+            <span className="flex-shrink mx-3 text-[10px] text-zinc-500 uppercase tracking-widest font-mono-numbers">
+              Or Use Directorate Passkey
+            </span>
+            <div className="flex-grow border-t border-zinc-800"></div>
+          </div>
 
           <form onSubmit={handlePasskeySubmit} className="space-y-5">
             <div>
@@ -566,8 +657,8 @@ export const AdminPanelPage: React.FC<AdminPanelPageProps> = ({
                 <span className="text-amber-300 font-black uppercase">PASSKEY LOCAL MODE</span>
                 <span className="text-zinc-400 ml-2">
                   {firebaseUser?.email
-                    ? `Signed in as ${firebaseUser.email} (not Cloud Admin ${BOOTSTRAPPED_ADMIN_EMAIL}).`
-                    : `Sign in with Google as ${BOOTSTRAPPED_ADMIN_EMAIL} to persist Admin changes directly to Cloud Firestore.`}
+                    ? `Signed in as ${firebaseUser.email} (not on Authorized Admin Allowlist).`
+                    : `Sign in with Google as Authorized Admin (trivedianiruddh667@gmail.com / nrddhtrivedi@gmail.com) to persist Admin changes directly to Cloud Firestore.`}
                 </span>
               </div>
             )}
